@@ -39,7 +39,7 @@ tidy:
 ## test: run all tests
 .PHONY: test
 test:
-	go test -v -race -buildvcs -p 1 ./...
+	go test -race -v ./...
 
 ## test/cover: run all tests and display coverage
 .PHONY: test/cover
