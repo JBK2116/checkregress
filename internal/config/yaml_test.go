@@ -201,6 +201,17 @@ func TestLoadYamlRouteValidation(t *testing.T) {
 		want    string
 	}{
 		{
+			name: "route missing name",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - legacy: "https://legacy.example.com"
+    candidate: "https://candidate.example.com"
+`,
+			want: "name",
+		},
+		{
 			name: "route missing legacy",
 			content: `
 listen: "127.0.0.1:8080"
@@ -232,6 +243,61 @@ routes:
 			msg := catchPanic(t, func() { loadYamlFromDir(dir) })
 			if !strings.Contains(msg, "missing required field") {
 				t.Fatalf("panic message %q does not mention a missing field", msg)
+			}
+			if !strings.Contains(msg, tt.want) {
+				t.Fatalf("panic message %q does not mention %q", msg, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadYamlDuplicateRouteValues(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name: "duplicate route name",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - name: "primary"
+    legacy: "https://legacy.example.com"
+    candidate: "https://candidate.example.com"
+  - name: "primary"
+    legacy: "https://legacy2.example.com"
+    candidate: "https://candidate2.example.com"
+`,
+			want: "Name (primary)",
+		},
+		{
+			name: "duplicate route legacy",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - name: "primary"
+    legacy: "https://legacy.example.com"
+    candidate: "https://candidate.example.com"
+  - name: "secondary"
+    legacy: "https://legacy.example.com"
+    candidate: "https://candidate2.example.com"
+`,
+			want: "Legacy (https://legacy.example.com)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := writeConfigFile(t, "config.yml", tt.content)
+
+			msg := catchPanic(t, func() { loadYamlFromDir(dir) })
+			if !strings.Contains(msg, "field value already exists") {
+				t.Fatalf("panic message %q does not mention a duplicate field", msg)
 			}
 			if !strings.Contains(msg, tt.want) {
 				t.Fatalf("panic message %q does not mention %q", msg, tt.want)
@@ -278,18 +344,20 @@ func TestLoadYamlDefaults(t *testing.T) {
 }
 
 func TestLoadYamlExplicitValues(t *testing.T) {
+	const usingMaxBodyBytes = 2097152
+	const usingShadowTimeoutMS = 15000
 	t.Parallel()
-	content := `
+	content := fmt.Sprintf(`
 listen: "0.0.0.0:9090"
 admin_listen: "127.0.0.1:9091"
-max_body_bytes: 2097152
-shadow_timeout_ms: 15000
+max_body_bytes: %d
+shadow_timeout_ms: %d
 routes:
   - name: "primary"
     legacy: "https://legacy.example.com"
     secondary: "https://shadow.example.com"
     candidate: "https://candidate.example.com"
-`
+`, usingMaxBodyBytes, usingShadowTimeoutMS)
 	dir := writeConfigFile(t, "config.yml", content)
 
 	conf := loadYamlFromDir(dir)
@@ -300,11 +368,11 @@ routes:
 	if conf.AdminListen != "127.0.0.1:9091" {
 		t.Errorf("AdminListen = %q, want %q", conf.AdminListen, "127.0.0.1:9091")
 	}
-	if conf.MaxBodyBytes != 2097152 {
-		t.Errorf("MaxBodyBytes = %d, want %d", conf.MaxBodyBytes, 2097152)
+	if conf.MaxBodyBytes != usingMaxBodyBytes {
+		t.Errorf("MaxBodyBytes = %d, want %d", conf.MaxBodyBytes, usingMaxBodyBytes)
 	}
-	if conf.ShadowTimeoutMS != 15000 {
-		t.Errorf("ShadowTimeoutMS = %d, want %d", conf.ShadowTimeoutMS, 15000)
+	if conf.ShadowTimeoutMS != usingShadowTimeoutMS {
+		t.Errorf("ShadowTimeoutMS = %d, want %d", conf.ShadowTimeoutMS, usingShadowTimeoutMS)
 	}
 
 	if len(conf.Routes) != 1 {

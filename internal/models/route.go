@@ -18,6 +18,9 @@ type Route struct {
 func (r *Route) ValidateRouteConfig() {
 	const missingFieldMessage = "invalid yaml configuration (missing required field)"
 
+	if r.Name == "" {
+		panic(fmt.Sprintf("%s: name", missingFieldMessage))
+	}
 	if r.Legacy == "" {
 		panic(fmt.Sprintf("%s: legacy", missingFieldMessage))
 	}

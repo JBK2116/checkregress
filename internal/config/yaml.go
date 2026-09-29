@@ -74,6 +74,7 @@ func LoadYaml() YamlConfig {
 func (c *YamlConfig) validateYamlConfig() {
 	const missingFieldMessage = "invalid yaml configuration (missing required field)"
 	const invalidFieldMessage = "invalid yaml configuration (field is improperly configured)"
+	const duplicateFieldMessage = "invalid yaml configuration (field value already exists)"
 
 	if c.Listen == "" {
 		panic(fmt.Sprintf("%s: listen", missingFieldMessage))
@@ -99,7 +100,21 @@ func (c *YamlConfig) validateYamlConfig() {
 	if len(c.Routes) == 0 {
 		panic(fmt.Sprintf("%s: routes", missingFieldMessage))
 	}
+	seenName := map[string]bool{}
+	seenLegacy := map[string]bool{}
 	for i := range c.Routes {
+		// ensure that each route has a unique service name to prevent router panics
+		name := c.Routes[i].Name
+		if seenName[name] {
+			panic(fmt.Sprintf("%s: Name (%s)", duplicateFieldMessage, name))
+		}
+		seenName[name] = true
+		// ensure that each route has a unique legacy url to prevent router configuration mismanagement
+		legacy := c.Routes[i].Legacy
+		if seenLegacy[legacy] {
+			panic(fmt.Sprintf("%s: Legacy (%s)", duplicateFieldMessage, legacy))
+		}
+		seenLegacy[legacy] = true
 		c.Routes[i].ValidateRouteConfig()
 		c.Routes[i].ApplyDefaults()
 	}
