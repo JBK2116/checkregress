@@ -36,28 +36,42 @@ func loadYamlFromPath(path string) YamlConfig {
 		panic("error reading yaml configuration file")
 	}
 
-	var conf YamlConfig
+	var raw RawYamlConfig
 
-	if uErr := yaml.Unmarshal(f, &conf); uErr != nil {
+	if uErr := yaml.Unmarshal(f, &raw); uErr != nil {
 		panic("error loading yaml configuration file into struct")
 	}
-	conf.validateYamlConfig()
-	conf.applyDefaults()
+
+	conf := raw.validate()
 	return conf
 }
 
-// YamlConfig stores the configuration settings in the root “config.yml“.
-type YamlConfig struct {
+// RawYamlConfig represents the raw yaml config parsed from "config.yml".
+type RawYamlConfig struct {
 	// Listen sets the port used by the reverse proxy.
 	Listen string `yaml:"listen"`
 	// AdminListen sets the port used to access the adminAPI.
 	AdminListen string `yaml:"admin_listen"`
 	// MaxBodyBytes sets the max amount of payload data read into memory for a diff.
 	MaxBodyBytes int `yaml:"max_body_bytes"`
-	// ShadowTimeout sets the max amount of seconds a worker has to shadow a proxy request before timing out.
+	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
 	ShadowTimeoutMS int `yaml:"shadow_timeout_ms"`
 	// Routes stores the collection of endpoints to handle in the application.
-	Routes []models.Route `yaml:"routes"`
+	Routes []models.RawRoute `yaml:"routes"`
+}
+
+// YamlConfig stores the configuration settings in the root "config.yml".
+type YamlConfig struct {
+	// Listen sets the port used by the reverse proxy.
+	Listen string
+	// AdminListen sets the port used to access the adminAPI.
+	AdminListen string
+	// MaxBodyBytes sets the max amount of payload data read into memory for a diff.
+	MaxBodyBytes int
+	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
+	ShadowTimeoutMS int
+	// Routes stores the collection of endpoints to handle in the application.
+	Routes []models.Route
 }
 
 // LoadYaml loads the YAML config file (named "config.yml") from the current
@@ -70,8 +84,8 @@ func LoadYaml() YamlConfig {
 	return loadYamlFromDir(wd)
 }
 
-// validateYamlConfig ensures that the yaml configuration file is properly configured.
-func (c *YamlConfig) validateYamlConfig() {
+// validate returns a validated YamlConfig.
+func (c *RawYamlConfig) validate() YamlConfig {
 	const missingFieldMessage = "invalid yaml configuration (missing required field)"
 	const invalidFieldMessage = "invalid yaml configuration (field is improperly configured)"
 	const duplicateFieldMessage = "invalid yaml configuration (field value already exists)"
@@ -100,8 +114,19 @@ func (c *YamlConfig) validateYamlConfig() {
 	if len(c.Routes) == 0 {
 		panic(fmt.Sprintf("%s: routes", missingFieldMessage))
 	}
+	c.applyDefaults()
+
+	var conf YamlConfig
+	conf.Listen = c.Listen
+	conf.AdminListen = c.AdminListen
+	conf.MaxBodyBytes = c.MaxBodyBytes
+	conf.ShadowTimeoutMS = c.ShadowTimeoutMS
+
 	seenName := map[string]bool{}
 	seenLegacy := map[string]bool{}
+
+	routes := make([]models.Route, len(c.Routes))
+
 	for i := range c.Routes {
 		// ensure that each route has a unique service name to prevent router panics
 		name := c.Routes[i].Name
@@ -115,13 +140,16 @@ func (c *YamlConfig) validateYamlConfig() {
 			panic(fmt.Sprintf("%s: Legacy (%s)", duplicateFieldMessage, legacy))
 		}
 		seenLegacy[legacy] = true
-		c.Routes[i].ValidateRouteConfig()
-		c.Routes[i].ApplyDefaults()
+		// add this to the yaml config for use
+		routes[i] = c.Routes[i].Validate()
 	}
+
+	conf.Routes = routes
+	return conf
 }
 
 // applyDefaults sets appropriate defaults in the yaml configuration file.
-func (c *YamlConfig) applyDefaults() {
+func (c *RawYamlConfig) applyDefaults() {
 	if c.MaxBodyBytes == 0 {
 		c.MaxBodyBytes = defaultMaxBodyBytes
 	}

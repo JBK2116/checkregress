@@ -306,6 +306,110 @@ routes:
 	}
 }
 
+func TestLoadYamlInvalidRouteURLs(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name: "legacy missing scheme",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - name: "primary"
+    legacy: "legacy.example.com"
+    candidate: "https://candidate.example.com"
+`,
+			want: "legacy",
+		},
+		{
+			name: "legacy unsupported scheme",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - name: "primary"
+    legacy: "ftp://legacy.example.com"
+    candidate: "https://candidate.example.com"
+`,
+			want: "legacy",
+		},
+		{
+			name: "legacy missing host",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - name: "primary"
+    legacy: "https://"
+    candidate: "https://candidate.example.com"
+`,
+			want: "legacy",
+		},
+		{
+			name: "candidate missing scheme",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - name: "primary"
+    legacy: "https://legacy.example.com"
+    candidate: "candidate.example.com"
+`,
+			want: "candidate",
+		},
+		{
+			name: "secondary unsupported scheme",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - name: "primary"
+    legacy: "https://legacy.example.com"
+    secondary: "ftp://shadow.example.com"
+    candidate: "https://candidate.example.com"
+`,
+			want: "secondary",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := writeConfigFile(t, "config.yml", tt.content)
+
+			msg := catchPanic(t, func() { loadYamlFromDir(dir) })
+			if !strings.Contains(msg, "improperly configured") {
+				t.Fatalf("panic message %q does not mention an invalid field", msg)
+			}
+			if !strings.Contains(msg, tt.want) {
+				t.Fatalf("panic message %q does not mention %q", msg, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadYamlLegacyEqualsCandidate(t *testing.T) {
+	t.Parallel()
+	content := `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - name: "primary"
+    legacy: "https://same.example.com"
+    candidate: "https://same.example.com"
+`
+	dir := writeConfigFile(t, "config.yml", content)
+
+	msg := catchPanic(t, func() { loadYamlFromDir(dir) })
+	if !strings.Contains(msg, "legacy cannot equal candidate") {
+		t.Fatalf("panic message %q does not mention the legacy/candidate mismatch", msg)
+	}
+}
+
 func TestLoadYamlDefaults(t *testing.T) {
 	t.Parallel()
 	dir := writeConfigFile(t, "config.yml", validConfig())
@@ -338,8 +442,15 @@ func TestLoadYamlDefaults(t *testing.T) {
 	if len(conf.Routes) != 1 {
 		t.Fatalf("len(Routes) = %d, want 1", len(conf.Routes))
 	}
-	if conf.Routes[0].Secondary != conf.Routes[0].Legacy {
-		t.Errorf("Secondary = %q, want %q", conf.Routes[0].Secondary, conf.Routes[0].Legacy)
+	legacy := conf.Routes[0].Legacy
+	secondary := conf.Routes[0].Secondary
+	if secondary.String() != legacy.String() {
+		t.Errorf("Secondary = %q, want %q", secondary, legacy)
+	}
+	// The defaulted secondary must be an independent copy, not the same
+	// *url.URL pointer, so mutating one does not affect the other.
+	if secondary == legacy {
+		t.Error("Secondary and Legacy share a *url.URL pointer, want independent values")
 	}
 }
 
@@ -382,13 +493,13 @@ routes:
 	if r.Name != "primary" {
 		t.Errorf("Name = %q, want %q", r.Name, "primary")
 	}
-	if r.Legacy != "https://legacy.example.com" {
+	if r.Legacy.String() != "https://legacy.example.com" {
 		t.Errorf("Legacy = %q, want %q", r.Legacy, "https://legacy.example.com")
 	}
-	if r.Secondary != "https://shadow.example.com" {
+	if r.Secondary.String() != "https://shadow.example.com" {
 		t.Errorf("Secondary = %q, want %q", r.Secondary, "https://shadow.example.com")
 	}
-	if r.Candidate != "https://candidate.example.com" {
+	if r.Candidate.String() != "https://candidate.example.com" {
 		t.Errorf("Candidate = %q, want %q", r.Candidate, "https://candidate.example.com")
 	}
 }

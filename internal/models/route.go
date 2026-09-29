@@ -1,9 +1,12 @@
 package models
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+)
 
-// Route represents a proxy route in the application.
-type Route struct {
+// RawRoute represents a raw proxy route parsed from "config.yml".
+type RawRoute struct {
 	// Name sets the name of the routing group.
 	Name string `yaml:"name"`
 	// Legacy is the full url of the legacy endpoint.
@@ -14,9 +17,22 @@ type Route struct {
 	Candidate string `yaml:"candidate"`
 }
 
-// ValidateRouteConfig ensures that a route configuration variable is properly configured.
-func (r *Route) ValidateRouteConfig() {
+// Route represents a proxy route in the application.
+type Route struct {
+	// Name sets the name of the routing group.
+	Name string
+	// Legacy is the full url of the legacy endpoint.
+	Legacy *url.URL
+	// Secondary is the full url of the shadow legacy endpoint.
+	Secondary *url.URL
+	// Candidate is the full url of the new migration endpoint.
+	Candidate *url.URL
+}
+
+// Validate returns a validated proxy route.
+func (r *RawRoute) Validate() Route {
 	const missingFieldMessage = "invalid yaml configuration (missing required field)"
+	const legacyMismatchMessage = "invalid yaml configuration (legacy cannot equal candidate)"
 
 	if r.Name == "" {
 		panic(fmt.Sprintf("%s: name", missingFieldMessage))
@@ -27,11 +43,36 @@ func (r *Route) ValidateRouteConfig() {
 	if r.Candidate == "" {
 		panic(fmt.Sprintf("%s: candidate", missingFieldMessage))
 	}
+	if r.Legacy == r.Candidate {
+		panic(fmt.Sprintf("%s: (legacy = %s) (candidate = %s)", legacyMismatchMessage, r.Legacy, r.Candidate))
+	}
+
+	parsed := Route{
+		Name:      r.Name,
+		Legacy:    parseRouteURL("legacy", r.Legacy),
+		Candidate: parseRouteURL("candidate", r.Candidate),
+	}
+
+	if r.Secondary != "" {
+		parsed.Secondary = parseRouteURL("secondary", r.Secondary)
+	} else {
+		// Default secondary to legacy. Copy the URL value so the two targets
+		// remain independent.
+		secondary := *parsed.Legacy
+		parsed.Secondary = &secondary
+	}
+	return parsed
 }
 
-// ApplyDefaults sets appropriate defaults for a route variable in the yaml configuration file.
-func (r *Route) ApplyDefaults() {
-	if r.Secondary == "" {
-		r.Secondary = r.Legacy
+// parseRouteURL parses a raw endpoint string into an absolute URL and panics
+// with a descriptive message if the value is malformed or lacks a scheme or
+// host.
+func parseRouteURL(field, raw string) *url.URL {
+	const invalidFieldMessage = "invalid yaml configuration (field is improperly configured)"
+
+	u, err := url.ParseRequestURI(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		panic(fmt.Sprintf("%s: %s (%s)", invalidFieldMessage, field, raw))
 	}
+	return u
 }
