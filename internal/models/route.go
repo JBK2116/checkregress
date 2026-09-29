@@ -33,6 +33,7 @@ type Route struct {
 func (r *RawRoute) Validate() Route {
 	const missingFieldMessage = "invalid yaml configuration (missing required field)"
 	const legacyMismatchMessage = "invalid yaml configuration (legacy cannot equal candidate)"
+	const secondaryMismatchMessage = "invalid yaml configuration (secondary cannot equal candidate)"
 
 	if r.Name == "" {
 		panic(fmt.Sprintf("%s: name", missingFieldMessage))
@@ -45,6 +46,9 @@ func (r *RawRoute) Validate() Route {
 	}
 	if r.Legacy == r.Candidate {
 		panic(fmt.Sprintf("%s: (legacy = %s) (candidate = %s)", legacyMismatchMessage, r.Legacy, r.Candidate))
+	}
+	if r.Secondary != "" && r.Secondary == r.Candidate {
+		panic(fmt.Sprintf("%s: (secondary = %s) (candidate = %s)", secondaryMismatchMessage, r.Secondary, r.Candidate))
 	}
 
 	parsed := Route{

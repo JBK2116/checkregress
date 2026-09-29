@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/JBK2116/checkregress/internal/models"
 	"go.yaml.in/yaml/v4"
@@ -20,6 +22,10 @@ const (
 	defaultShadowTimeoutMS = 5000
 	// maxShadowTimeoutMS is the upperbound limit for the shadow_timeout_ms field (30 seconds).
 	maxShadowTimeoutMS = 30000
+	// minPort is the lowest valid port number (port 0 is reserved).
+	minPort = 1
+	// maxPort is the highest valid port number.
+	maxPort = 65535
 )
 
 // loadYamlFromDir loads the config file named by yamlFileName from the given
@@ -89,12 +95,18 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	const missingFieldMessage = "invalid yaml configuration (missing required field)"
 	const invalidFieldMessage = "invalid yaml configuration (field is improperly configured)"
 	const duplicateFieldMessage = "invalid yaml configuration (field value already exists)"
+	const listenMismatchMessage = "invalid yaml configuration (listen cannot equal admin_listen)"
 
 	if c.Listen == "" {
 		panic(fmt.Sprintf("%s: listen", missingFieldMessage))
 	}
 	if c.AdminListen == "" {
 		panic(fmt.Sprintf("%s: admin_listen", missingFieldMessage))
+	}
+	validateListen(c.Listen)
+	validateAdminListen(c.AdminListen)
+	if c.Listen == c.AdminListen {
+		panic(fmt.Sprintf("%s: (listen = %s) (admin_listen = %s)", listenMismatchMessage, c.Listen, c.AdminListen))
 	}
 	if c.MaxBodyBytes > maxBodyBytesLimit {
 		panic(fmt.Sprintf("%s: max_body_bytes must be less than %d bytes", invalidFieldMessage, maxBodyBytesLimit))
@@ -156,4 +168,41 @@ func (c *RawYamlConfig) applyDefaults() {
 	if c.ShadowTimeoutMS == 0 {
 		c.ShadowTimeoutMS = defaultShadowTimeoutMS
 	}
+}
+
+// validateListen ensures addr is a valid listen address in host:port form with
+// a valid port. The host may be empty to bind all interfaces.
+func validateListen(addr string) {
+	const invalidFieldMessage = "invalid yaml configuration (field is improperly configured)"
+
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		panic(fmt.Sprintf("%s: listen must be in host:port form", invalidFieldMessage))
+	}
+	if !validPort(port) {
+		panic(fmt.Sprintf("%s: listen must contain a valid port", invalidFieldMessage))
+	}
+}
+
+// validateAdminListen ensures addr is a valid IP:port address. Unlike listen,
+// the host must be a literal IP address rather than a hostname.
+func validateAdminListen(addr string) {
+	const invalidFieldMessage = "invalid yaml configuration (field is improperly configured)"
+
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		panic(fmt.Sprintf("%s: admin_listen must be in host:port form", invalidFieldMessage))
+	}
+	if !validPort(port) {
+		panic(fmt.Sprintf("%s: admin_listen must contain a valid port", invalidFieldMessage))
+	}
+	if net.ParseIP(host) == nil {
+		panic(fmt.Sprintf("%s: admin_listen must contain a valid IP address", invalidFieldMessage))
+	}
+}
+
+// validPort reports whether port is a valid numeric port number.
+func validPort(port string) bool {
+	p, err := strconv.Atoi(port)
+	return err == nil && p >= minPort && p <= maxPort
 }

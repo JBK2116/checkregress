@@ -71,6 +71,19 @@ routes:
 `, field)
 }
 
+// wrapListenAddr returns a valid configuration document with the given listen
+// and admin_listen values substituted in.
+func wrapListenAddr(listen, adminListen string) string {
+	return fmt.Sprintf(`
+listen: %q
+admin_listen: %q
+routes:
+  - name: "primary"
+    legacy: "https://legacy.example.com"
+    candidate: "https://candidate.example.com"
+`, listen, adminListen)
+}
+
 func TestLoadYamlFileNotFound(t *testing.T) {
 	t.Parallel()
 	dir := writeConfigFile(t, "", "")
@@ -407,6 +420,117 @@ routes:
 	msg := catchPanic(t, func() { loadYamlFromDir(dir) })
 	if !strings.Contains(msg, "legacy cannot equal candidate") {
 		t.Fatalf("panic message %q does not mention the legacy/candidate mismatch", msg)
+	}
+}
+
+func TestLoadYamlSecondaryEqualsCandidate(t *testing.T) {
+	t.Parallel()
+	content := `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - name: "primary"
+    legacy: "https://legacy.example.com"
+    secondary: "https://candidate.example.com"
+    candidate: "https://candidate.example.com"
+`
+	dir := writeConfigFile(t, "config.yml", content)
+
+	msg := catchPanic(t, func() { loadYamlFromDir(dir) })
+	if !strings.Contains(msg, "secondary cannot equal candidate") {
+		t.Fatalf("panic message %q does not mention the secondary/candidate mismatch", msg)
+	}
+}
+
+func TestLoadYamlInvalidListenAddresses(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		listen      string
+		adminListen string
+		want        string
+	}{
+		{
+			name:        "listen missing port",
+			listen:      "127.0.0.1",
+			adminListen: "127.0.0.1:8081",
+			want:        "listen must be in host:port form",
+		},
+		{
+			name:        "listen non-numeric port",
+			listen:      ":abc",
+			adminListen: "127.0.0.1:8081",
+			want:        "listen must contain a valid port",
+		},
+		{
+			name:        "listen port out of range",
+			listen:      ":65536",
+			adminListen: "127.0.0.1:8081",
+			want:        "listen must contain a valid port",
+		},
+		{
+			name:        "listen port zero",
+			listen:      ":0",
+			adminListen: "127.0.0.1:8081",
+			want:        "listen must contain a valid port",
+		},
+		{
+			name:        "admin_listen missing port",
+			listen:      "127.0.0.1:8080",
+			adminListen: "127.0.0.1",
+			want:        "admin_listen must be in host:port form",
+		},
+		{
+			name:        "admin_listen non-numeric port",
+			listen:      "127.0.0.1:8080",
+			adminListen: "127.0.0.1:abc",
+			want:        "admin_listen must contain a valid port",
+		},
+		{
+			name:        "admin_listen invalid IP",
+			listen:      "127.0.0.1:8080",
+			adminListen: "localhost:8081",
+			want:        "admin_listen must contain a valid IP address",
+		},
+		{
+			name:        "admin_listen empty host",
+			listen:      "127.0.0.1:8080",
+			adminListen: ":8081",
+			want:        "admin_listen must contain a valid IP address",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := writeConfigFile(t, "config.yml", wrapListenAddr(tt.listen, tt.adminListen))
+
+			msg := catchPanic(t, func() { loadYamlFromDir(dir) })
+			if !strings.Contains(msg, "improperly configured") {
+				t.Fatalf("panic message %q does not mention an invalid field", msg)
+			}
+			if !strings.Contains(msg, tt.want) {
+				t.Fatalf("panic message %q does not contain %q", msg, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadYamlListenEqualsAdminListen(t *testing.T) {
+	t.Parallel()
+	content := `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8080"
+routes:
+  - name: "primary"
+    legacy: "https://legacy.example.com"
+    candidate: "https://candidate.example.com"
+`
+	dir := writeConfigFile(t, "config.yml", content)
+
+	msg := catchPanic(t, func() { loadYamlFromDir(dir) })
+	if !strings.Contains(msg, "listen cannot equal admin_listen") {
+		t.Fatalf("panic message %q does not mention the listen/admin_listen mismatch", msg)
 	}
 }
 
