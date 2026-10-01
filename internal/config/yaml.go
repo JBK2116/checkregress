@@ -30,6 +30,10 @@ const (
 	defaultIdleTimeoutMS = 60000
 	// maxIdleTimeoutMS is the upperbound limit for the idle_timeout_ms field (600 seconds).
 	maxIdleTimeoutMS = 600000
+	// defaultE2ETimeoutMS is the default value for the e2e_timeout_ms field (60 seconds).
+	defaultE2ETimeoutMS = 60000
+	// maxE2ETimeoutMS is the upperbound limit for the e2e_timeout_ms field (600 seconds).
+	maxE2ETimeoutMS = 600000
 	// minPort is the lowest valid port number (port 0 is reserved).
 	minPort = 1
 	// maxPort is the highest valid port number.
@@ -74,6 +78,8 @@ type RawYamlConfig struct {
 	ReadHeaderTimeoutMS int `yaml:"read_header_timeout_ms"`
 	// IdleTimeoutMS sets the max amount of milliseconds the server keeps an idle keep-alive connection open.
 	IdleTimeoutMS int `yaml:"idle_timeout_ms"`
+	// E2ETimeoutMS sets the max amount of milliseconds the proxy waits for the full end-to-end proxied request.
+	E2ETimeoutMS int `yaml:"e2e_timeout_ms"`
 	// Routes stores the collection of endpoints to handle in the application.
 	Routes []models.RawRoute `yaml:"routes"`
 }
@@ -92,6 +98,8 @@ type YamlConfig struct {
 	ReadHeaderTimeoutMS int
 	// IdleTimeoutMS sets the max amount of milliseconds the server keeps an idle keep-alive connection open.
 	IdleTimeoutMS int
+	// E2ETimeoutMS sets the max amount of milliseconds the proxy waits for the full end-to-end proxied request.
+	E2ETimeoutMS int
 	// Routes stores the collection of endpoints to handle in the application.
 	Routes []models.Route
 }
@@ -157,10 +165,29 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	if c.IdleTimeoutMS < 0 {
 		panic(fmt.Sprintf("%s: idle_timeout_ms must be greater than 0 milliseconds", invalidFieldMessage))
 	}
+	if c.E2ETimeoutMS > maxE2ETimeoutMS {
+		panic(fmt.Sprintf(
+			"%s: e2e_timeout_ms must be less than %d milliseconds",
+			invalidFieldMessage, maxE2ETimeoutMS,
+		))
+	}
+	if c.E2ETimeoutMS < 0 {
+		panic(fmt.Sprintf("%s: e2e_timeout_ms must be greater than 0 milliseconds", invalidFieldMessage))
+	}
 	if len(c.Routes) == 0 {
 		panic(fmt.Sprintf("%s: routes", missingFieldMessage))
 	}
 	c.applyDefaults()
+
+	// The shadow comparison must fit inside the overall request budget, so
+	// shadow_timeout_ms must be strictly less than e2e_timeout_ms. This check
+	// runs after defaults so both values are final.
+	if c.ShadowTimeoutMS >= c.E2ETimeoutMS {
+		panic(fmt.Sprintf(
+			"%s: shadow_timeout_ms (%d) must be less than e2e_timeout_ms (%d)",
+			invalidFieldMessage, c.ShadowTimeoutMS, c.E2ETimeoutMS,
+		))
+	}
 
 	var conf YamlConfig
 	conf.Listen = c.Listen
@@ -169,6 +196,7 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	conf.ShadowTimeoutMS = c.ShadowTimeoutMS
 	conf.ReadHeaderTimeoutMS = c.ReadHeaderTimeoutMS
 	conf.IdleTimeoutMS = c.IdleTimeoutMS
+	conf.E2ETimeoutMS = c.E2ETimeoutMS
 
 	seenServerName := map[string]bool{}
 	seenLegacy := map[string]bool{}
@@ -209,6 +237,9 @@ func (c *RawYamlConfig) applyDefaults() {
 	}
 	if c.IdleTimeoutMS == 0 {
 		c.IdleTimeoutMS = defaultIdleTimeoutMS
+	}
+	if c.E2ETimeoutMS == 0 {
+		c.E2ETimeoutMS = defaultE2ETimeoutMS
 	}
 }
 

@@ -208,6 +208,16 @@ func TestLoadYamlInvalidFieldValues(t *testing.T) {
 			field: "idle_timeout_ms: -1",
 			want:  "idle_timeout_ms",
 		},
+		{
+			name:  "e2e_timeout_ms exceeds limit",
+			field: "e2e_timeout_ms: 600001", // 600 s + 1
+			want:  "e2e_timeout_ms",
+		},
+		{
+			name:  "e2e_timeout_ms negative",
+			field: "e2e_timeout_ms: -1",
+			want:  "e2e_timeout_ms",
+		},
 	}
 
 	for _, tt := range tests {
@@ -586,6 +596,12 @@ func TestLoadYamlDefaults(t *testing.T) {
 	if _, ok := any(conf.IdleTimeoutMS).(int); !ok {
 		t.Errorf("IdleTimeoutMS has type %T, want int", conf.IdleTimeoutMS)
 	}
+	if conf.E2ETimeoutMS != defaultE2ETimeoutMS {
+		t.Errorf("E2ETimeoutMS = %d, want %d", conf.E2ETimeoutMS, defaultE2ETimeoutMS)
+	}
+	if _, ok := any(conf.E2ETimeoutMS).(int); !ok {
+		t.Errorf("E2ETimeoutMS has type %T, want int", conf.E2ETimeoutMS)
+	}
 
 	if conf.Listen != "127.0.0.1:8080" {
 		t.Errorf("Listen = %q, want %q", conf.Listen, "127.0.0.1:8080")
@@ -615,6 +631,7 @@ func TestLoadYamlExplicitValues(t *testing.T) {
 	const usingShadowTimeoutMS = 15000
 	const usingReadHeaderTimeoutMS = 2500
 	const usingIdleTimeoutMS = 120000
+	const usingE2ETimeoutMS = 90000
 	t.Parallel()
 	content := fmt.Sprintf(`
 listen: "0.0.0.0:9090"
@@ -623,12 +640,13 @@ max_body_bytes: %d
 shadow_timeout_ms: %d
 read_header_timeout_ms: %d
 idle_timeout_ms: %d
+e2e_timeout_ms: %d
 routes:
   - server_name: "primary"
     legacy: "https://legacy.example.com"
     secondary: "https://shadow.example.com"
     candidate: "https://candidate.example.com"
-`, usingMaxBodyBytes, usingShadowTimeoutMS, usingReadHeaderTimeoutMS, usingIdleTimeoutMS)
+`, usingMaxBodyBytes, usingShadowTimeoutMS, usingReadHeaderTimeoutMS, usingIdleTimeoutMS, usingE2ETimeoutMS)
 	dir := writeConfigFile(t, "config.yml", content)
 
 	conf := loadYamlFromDir(dir)
@@ -651,6 +669,9 @@ routes:
 	if conf.IdleTimeoutMS != usingIdleTimeoutMS {
 		t.Errorf("IdleTimeoutMS = %d, want %d", conf.IdleTimeoutMS, usingIdleTimeoutMS)
 	}
+	if conf.E2ETimeoutMS != usingE2ETimeoutMS {
+		t.Errorf("E2ETimeoutMS = %d, want %d", conf.E2ETimeoutMS, usingE2ETimeoutMS)
+	}
 
 	if len(conf.Routes) != 1 {
 		t.Fatalf("len(Routes) = %d, want 1", len(conf.Routes))
@@ -667,5 +688,52 @@ routes:
 	}
 	if r.Candidate.String() != "https://candidate.example.com" {
 		t.Errorf("Candidate = %q, want %q", r.Candidate, "https://candidate.example.com")
+	}
+}
+
+func TestLoadYamlShadowTimeoutNotLessThanE2E(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "shadow equals e2e",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+shadow_timeout_ms: 30000
+e2e_timeout_ms: 30000
+routes:
+  - server_name: "primary"
+    legacy: "https://legacy.example.com"
+    candidate: "https://candidate.example.com"
+`,
+		},
+		{
+			name: "shadow exceeds e2e",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+shadow_timeout_ms: 20000
+e2e_timeout_ms: 15000
+routes:
+  - server_name: "primary"
+    legacy: "https://legacy.example.com"
+    candidate: "https://candidate.example.com"
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := writeConfigFile(t, "config.yml", tt.content)
+
+			msg := catchPanic(t, func() { loadYamlFromDir(dir) })
+			if !strings.Contains(msg, "must be less than e2e_timeout_ms") {
+				t.Fatalf("panic message %q does not mention the shadow/e2e timeout rule", msg)
+			}
+		})
 	}
 }
