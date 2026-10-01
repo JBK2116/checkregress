@@ -22,6 +22,14 @@ const (
 	defaultShadowTimeoutMS = 5000
 	// maxShadowTimeoutMS is the upperbound limit for the shadow_timeout_ms field (30 seconds).
 	maxShadowTimeoutMS = 30000
+	// defaultReadHeaderTimeoutMS is the default value for the read_header_timeout_ms field (5 seconds).
+	defaultReadHeaderTimeoutMS = 5000
+	// maxReadHeaderTimeoutMS is the upperbound limit for the read_header_timeout_ms field (60 seconds).
+	maxReadHeaderTimeoutMS = 60000
+	// defaultIdleTimeoutMS is the default value for the idle_timeout_ms field (60 seconds).
+	defaultIdleTimeoutMS = 60000
+	// maxIdleTimeoutMS is the upperbound limit for the idle_timeout_ms field (600 seconds).
+	maxIdleTimeoutMS = 600000
 	// minPort is the lowest valid port number (port 0 is reserved).
 	minPort = 1
 	// maxPort is the highest valid port number.
@@ -62,6 +70,10 @@ type RawYamlConfig struct {
 	MaxBodyBytes int `yaml:"max_body_bytes"`
 	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
 	ShadowTimeoutMS int `yaml:"shadow_timeout_ms"`
+	// ReadHeaderTimeoutMS sets the max amount of milliseconds the server waits to read a request's headers.
+	ReadHeaderTimeoutMS int `yaml:"read_header_timeout_ms"`
+	// IdleTimeoutMS sets the max amount of milliseconds the server keeps an idle keep-alive connection open.
+	IdleTimeoutMS int `yaml:"idle_timeout_ms"`
 	// Routes stores the collection of endpoints to handle in the application.
 	Routes []models.RawRoute `yaml:"routes"`
 }
@@ -76,6 +88,10 @@ type YamlConfig struct {
 	MaxBodyBytes int
 	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
 	ShadowTimeoutMS int
+	// ReadHeaderTimeoutMS sets the max amount of milliseconds the server waits to read a request's headers.
+	ReadHeaderTimeoutMS int
+	// IdleTimeoutMS sets the max amount of milliseconds the server keeps an idle keep-alive connection open.
+	IdleTimeoutMS int
 	// Routes stores the collection of endpoints to handle in the application.
 	Routes []models.Route
 }
@@ -123,6 +139,24 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	if c.ShadowTimeoutMS < 0 {
 		panic(fmt.Sprintf("%s: shadow_timeout_ms must be greater than 0 milliseconds", invalidFieldMessage))
 	}
+	if c.ReadHeaderTimeoutMS > maxReadHeaderTimeoutMS {
+		panic(fmt.Sprintf(
+			"%s: read_header_timeout_ms must be less than %d milliseconds",
+			invalidFieldMessage, maxReadHeaderTimeoutMS,
+		))
+	}
+	if c.ReadHeaderTimeoutMS < 0 {
+		panic(fmt.Sprintf("%s: read_header_timeout_ms must be greater than 0 milliseconds", invalidFieldMessage))
+	}
+	if c.IdleTimeoutMS > maxIdleTimeoutMS {
+		panic(fmt.Sprintf(
+			"%s: idle_timeout_ms must be less than %d milliseconds",
+			invalidFieldMessage, maxIdleTimeoutMS,
+		))
+	}
+	if c.IdleTimeoutMS < 0 {
+		panic(fmt.Sprintf("%s: idle_timeout_ms must be greater than 0 milliseconds", invalidFieldMessage))
+	}
 	if len(c.Routes) == 0 {
 		panic(fmt.Sprintf("%s: routes", missingFieldMessage))
 	}
@@ -133,6 +167,8 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	conf.AdminListen = c.AdminListen
 	conf.MaxBodyBytes = c.MaxBodyBytes
 	conf.ShadowTimeoutMS = c.ShadowTimeoutMS
+	conf.ReadHeaderTimeoutMS = c.ReadHeaderTimeoutMS
+	conf.IdleTimeoutMS = c.IdleTimeoutMS
 
 	seenServerName := map[string]bool{}
 	seenLegacy := map[string]bool{}
@@ -167,6 +203,12 @@ func (c *RawYamlConfig) applyDefaults() {
 	}
 	if c.ShadowTimeoutMS == 0 {
 		c.ShadowTimeoutMS = defaultShadowTimeoutMS
+	}
+	if c.ReadHeaderTimeoutMS == 0 {
+		c.ReadHeaderTimeoutMS = defaultReadHeaderTimeoutMS
+	}
+	if c.IdleTimeoutMS == 0 {
+		c.IdleTimeoutMS = defaultIdleTimeoutMS
 	}
 }
 

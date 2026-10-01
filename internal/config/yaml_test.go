@@ -188,6 +188,26 @@ func TestLoadYamlInvalidFieldValues(t *testing.T) {
 			field: "shadow_timeout_ms: -1",
 			want:  "shadow_timeout_ms",
 		},
+		{
+			name:  "read_header_timeout_ms exceeds limit",
+			field: "read_header_timeout_ms: 60001", // 60 s + 1
+			want:  "read_header_timeout_ms",
+		},
+		{
+			name:  "read_header_timeout_ms negative",
+			field: "read_header_timeout_ms: -1",
+			want:  "read_header_timeout_ms",
+		},
+		{
+			name:  "idle_timeout_ms exceeds limit",
+			field: "idle_timeout_ms: 600001", // 600 s + 1
+			want:  "idle_timeout_ms",
+		},
+		{
+			name:  "idle_timeout_ms negative",
+			field: "idle_timeout_ms: -1",
+			want:  "idle_timeout_ms",
+		},
 	}
 
 	for _, tt := range tests {
@@ -554,6 +574,18 @@ func TestLoadYamlDefaults(t *testing.T) {
 	if _, ok := any(conf.ShadowTimeoutMS).(int); !ok {
 		t.Errorf("ShadowTimeoutMS has type %T, want int", conf.ShadowTimeoutMS)
 	}
+	if conf.ReadHeaderTimeoutMS != defaultReadHeaderTimeoutMS {
+		t.Errorf("ReadHeaderTimeoutMS = %d, want %d", conf.ReadHeaderTimeoutMS, defaultReadHeaderTimeoutMS)
+	}
+	if _, ok := any(conf.ReadHeaderTimeoutMS).(int); !ok {
+		t.Errorf("ReadHeaderTimeoutMS has type %T, want int", conf.ReadHeaderTimeoutMS)
+	}
+	if conf.IdleTimeoutMS != defaultIdleTimeoutMS {
+		t.Errorf("IdleTimeoutMS = %d, want %d", conf.IdleTimeoutMS, defaultIdleTimeoutMS)
+	}
+	if _, ok := any(conf.IdleTimeoutMS).(int); !ok {
+		t.Errorf("IdleTimeoutMS has type %T, want int", conf.IdleTimeoutMS)
+	}
 
 	if conf.Listen != "127.0.0.1:8080" {
 		t.Errorf("Listen = %q, want %q", conf.Listen, "127.0.0.1:8080")
@@ -581,18 +613,22 @@ func TestLoadYamlDefaults(t *testing.T) {
 func TestLoadYamlExplicitValues(t *testing.T) {
 	const usingMaxBodyBytes = 2097152
 	const usingShadowTimeoutMS = 15000
+	const usingReadHeaderTimeoutMS = 2500
+	const usingIdleTimeoutMS = 120000
 	t.Parallel()
 	content := fmt.Sprintf(`
 listen: "0.0.0.0:9090"
 admin_listen: "127.0.0.1:9091"
 max_body_bytes: %d
 shadow_timeout_ms: %d
+read_header_timeout_ms: %d
+idle_timeout_ms: %d
 routes:
   - server_name: "primary"
     legacy: "https://legacy.example.com"
     secondary: "https://shadow.example.com"
     candidate: "https://candidate.example.com"
-`, usingMaxBodyBytes, usingShadowTimeoutMS)
+`, usingMaxBodyBytes, usingShadowTimeoutMS, usingReadHeaderTimeoutMS, usingIdleTimeoutMS)
 	dir := writeConfigFile(t, "config.yml", content)
 
 	conf := loadYamlFromDir(dir)
@@ -608,6 +644,12 @@ routes:
 	}
 	if conf.ShadowTimeoutMS != usingShadowTimeoutMS {
 		t.Errorf("ShadowTimeoutMS = %d, want %d", conf.ShadowTimeoutMS, usingShadowTimeoutMS)
+	}
+	if conf.ReadHeaderTimeoutMS != usingReadHeaderTimeoutMS {
+		t.Errorf("ReadHeaderTimeoutMS = %d, want %d", conf.ReadHeaderTimeoutMS, usingReadHeaderTimeoutMS)
+	}
+	if conf.IdleTimeoutMS != usingIdleTimeoutMS {
+		t.Errorf("IdleTimeoutMS = %d, want %d", conf.IdleTimeoutMS, usingIdleTimeoutMS)
 	}
 
 	if len(conf.Routes) != 1 {
