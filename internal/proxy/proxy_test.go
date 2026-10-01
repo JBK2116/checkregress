@@ -67,7 +67,8 @@ func TestReverseProxyForwardsToLegacy(t *testing.T) {
 	legacy := mustParseURL(t, backend.URL)
 	rp := newReverseProxy(models.Route{ServerName: "svc", Legacy: legacy}, discardLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "http://client.example.com/api/orders?page=2", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/orders?page=2", nil)
+	req.Host = "client.example.com"
 	req.RemoteAddr = "192.0.2.1:4242"
 	// A client-supplied X-Forwarded-For must be ignored, not trusted.
 	req.Header.Set("X-Forwarded-For", "6.6.6.6")
@@ -102,7 +103,8 @@ func TestReverseProxyErrorReturnsBadGateway(t *testing.T) {
 
 	rp := newReverseProxy(models.Route{ServerName: "svc", Legacy: closedServerURL(t)}, discardLogger())
 
-	req := httptest.NewRequest(http.MethodGet, "http://client.example.com/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Host = "client.example.com"
 	rec := httptest.NewRecorder()
 	rp.Proxy.ServeHTTP(rec, req)
 
@@ -119,7 +121,8 @@ func TestReverseProxyErrorLogs(t *testing.T) {
 
 	rp := newReverseProxy(models.Route{ServerName: "svc", Legacy: closedServerURL(t)}, logger)
 
-	req := httptest.NewRequest(http.MethodGet, "http://client.example.com/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Host = "client.example.com"
 	rec := httptest.NewRecorder()
 	rp.Proxy.ServeHTTP(rec, req)
 
