@@ -134,18 +134,18 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	conf.MaxBodyBytes = c.MaxBodyBytes
 	conf.ShadowTimeoutMS = c.ShadowTimeoutMS
 
-	seenName := map[string]bool{}
+	seenServerName := map[string]bool{}
 	seenLegacy := map[string]bool{}
 
 	routes := make([]models.Route, len(c.Routes))
 
 	for i := range c.Routes {
-		// ensure that each route has a unique service name to prevent router panics
-		name := c.Routes[i].Name
-		if seenName[name] {
-			panic(fmt.Sprintf("%s: Name (%s)", duplicateFieldMessage, name))
+		// ensure that each route has a unique server name to prevent router panics
+		serverName := c.Routes[i].ServerName
+		if seenServerName[serverName] {
+			panic(fmt.Sprintf("%s: ServerName (%s)", duplicateFieldMessage, serverName))
 		}
-		seenName[name] = true
+		seenServerName[serverName] = true
 		// ensure that each route has a unique legacy url to prevent router configuration mismanagement
 		legacy := c.Routes[i].Legacy
 		if seenLegacy[legacy] {

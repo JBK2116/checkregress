@@ -65,7 +65,7 @@ func TestReverseProxyForwardsToLegacy(t *testing.T) {
 	t.Cleanup(backend.Close)
 
 	legacy := mustParseURL(t, backend.URL)
-	rp := newReverseProxy(models.Route{Name: "svc", Legacy: legacy}, discardLogger())
+	rp := newReverseProxy(models.Route{ServerName: "svc", Legacy: legacy}, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "http://client.example.com/api/orders?page=2", nil)
 	req.RemoteAddr = "192.0.2.1:4242"
@@ -100,7 +100,7 @@ func TestReverseProxyForwardsToLegacy(t *testing.T) {
 func TestReverseProxyErrorReturnsBadGateway(t *testing.T) {
 	t.Parallel()
 
-	rp := newReverseProxy(models.Route{Name: "svc", Legacy: closedServerURL(t)}, discardLogger())
+	rp := newReverseProxy(models.Route{ServerName: "svc", Legacy: closedServerURL(t)}, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "http://client.example.com/health", nil)
 	rec := httptest.NewRecorder()
@@ -117,7 +117,7 @@ func TestReverseProxyErrorLogs(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 
-	rp := newReverseProxy(models.Route{Name: "svc", Legacy: closedServerURL(t)}, logger)
+	rp := newReverseProxy(models.Route{ServerName: "svc", Legacy: closedServerURL(t)}, logger)
 
 	req := httptest.NewRequest(http.MethodGet, "http://client.example.com/health", nil)
 	rec := httptest.NewRecorder()

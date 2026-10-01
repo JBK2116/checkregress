@@ -7,8 +7,9 @@ import (
 
 // RawRoute represents a raw proxy route parsed from "config.yml".
 type RawRoute struct {
-	// Name sets the name of the routing group.
-	Name string `yaml:"name"`
+	// ServerName is the hostname clients use to reach this route group. It
+	// must match the incoming request's "Host" header (ignoring the port).
+	ServerName string `yaml:"server_name"`
 	// Legacy is the full url of the legacy endpoint.
 	Legacy string `yaml:"legacy"`
 	// Secondary is the full url of the shadow legacy endpoint.
@@ -19,8 +20,9 @@ type RawRoute struct {
 
 // Route represents a proxy route in the application.
 type Route struct {
-	// Name sets the name of the routing group.
-	Name string
+	// ServerName is the hostname clients use to reach this route group. It
+	// must match the incoming request's "Host" header (ignoring the port).
+	ServerName string
 	// Legacy is the full url of the legacy endpoint.
 	Legacy *url.URL
 	// Secondary is the full url of the shadow legacy endpoint.
@@ -35,8 +37,8 @@ func (r *RawRoute) Validate() Route {
 	const legacyMismatchMessage = "invalid yaml configuration (legacy cannot equal candidate)"
 	const secondaryMismatchMessage = "invalid yaml configuration (secondary cannot equal candidate)"
 
-	if r.Name == "" {
-		panic(fmt.Sprintf("%s: name", missingFieldMessage))
+	if r.ServerName == "" {
+		panic(fmt.Sprintf("%s: server_name", missingFieldMessage))
 	}
 	if r.Legacy == "" {
 		panic(fmt.Sprintf("%s: legacy", missingFieldMessage))
@@ -52,9 +54,9 @@ func (r *RawRoute) Validate() Route {
 	}
 
 	parsed := Route{
-		Name:      r.Name,
-		Legacy:    parseRouteURL("legacy", r.Legacy),
-		Candidate: parseRouteURL("candidate", r.Candidate),
+		ServerName: r.ServerName,
+		Legacy:     parseRouteURL("legacy", r.Legacy),
+		Candidate:  parseRouteURL("candidate", r.Candidate),
 	}
 
 	if r.Secondary != "" {

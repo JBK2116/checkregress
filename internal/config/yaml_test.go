@@ -51,7 +51,7 @@ func validConfig() string {
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     candidate: "https://candidate.example.com"
 `
@@ -65,7 +65,7 @@ listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 %s
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     candidate: "https://candidate.example.com"
 `, field)
@@ -78,7 +78,7 @@ func wrapListenAddr(listen, adminListen string) string {
 listen: %q
 admin_listen: %q
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     candidate: "https://candidate.example.com"
 `, listen, adminListen)
@@ -118,7 +118,7 @@ func TestLoadYamlMissingFields(t *testing.T) {
 			content: `
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     candidate: "https://candidate.example.com"
 `,
@@ -129,7 +129,7 @@ routes:
 			content: `
 listen: "127.0.0.1:8080"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     candidate: "https://candidate.example.com"
 `,
@@ -214,7 +214,7 @@ func TestLoadYamlRouteValidation(t *testing.T) {
 		want    string
 	}{
 		{
-			name: "route missing name",
+			name: "route missing server_name",
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
@@ -222,7 +222,7 @@ routes:
   - legacy: "https://legacy.example.com"
     candidate: "https://candidate.example.com"
 `,
-			want: "name",
+			want: "server_name",
 		},
 		{
 			name: "route missing legacy",
@@ -230,7 +230,7 @@ routes:
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     candidate: "https://candidate.example.com"
 `,
 			want: "legacy",
@@ -241,7 +241,7 @@ routes:
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
 `,
 			want: "candidate",
@@ -272,19 +272,19 @@ func TestLoadYamlDuplicateRouteValues(t *testing.T) {
 		want    string
 	}{
 		{
-			name: "duplicate route name",
+			name: "duplicate route server_name",
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     candidate: "https://candidate.example.com"
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy2.example.com"
     candidate: "https://candidate2.example.com"
 `,
-			want: "Name (primary)",
+			want: "ServerName (primary)",
 		},
 		{
 			name: "duplicate route legacy",
@@ -292,10 +292,10 @@ routes:
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     candidate: "https://candidate.example.com"
-  - name: "secondary"
+  - server_name: "secondary"
     legacy: "https://legacy.example.com"
     candidate: "https://candidate2.example.com"
 `,
@@ -332,7 +332,7 @@ func TestLoadYamlInvalidRouteURLs(t *testing.T) {
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "legacy.example.com"
     candidate: "https://candidate.example.com"
 `,
@@ -344,7 +344,7 @@ routes:
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "ftp://legacy.example.com"
     candidate: "https://candidate.example.com"
 `,
@@ -356,7 +356,7 @@ routes:
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://"
     candidate: "https://candidate.example.com"
 `,
@@ -368,7 +368,7 @@ routes:
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     candidate: "candidate.example.com"
 `,
@@ -380,7 +380,7 @@ routes:
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     secondary: "ftp://shadow.example.com"
     candidate: "https://candidate.example.com"
@@ -411,7 +411,7 @@ func TestLoadYamlLegacyEqualsCandidate(t *testing.T) {
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://same.example.com"
     candidate: "https://same.example.com"
 `
@@ -429,7 +429,7 @@ func TestLoadYamlSecondaryEqualsCandidate(t *testing.T) {
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     secondary: "https://candidate.example.com"
     candidate: "https://candidate.example.com"
@@ -522,7 +522,7 @@ func TestLoadYamlListenEqualsAdminListen(t *testing.T) {
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8080"
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     candidate: "https://candidate.example.com"
 `
@@ -588,7 +588,7 @@ admin_listen: "127.0.0.1:9091"
 max_body_bytes: %d
 shadow_timeout_ms: %d
 routes:
-  - name: "primary"
+  - server_name: "primary"
     legacy: "https://legacy.example.com"
     secondary: "https://shadow.example.com"
     candidate: "https://candidate.example.com"
@@ -614,8 +614,8 @@ routes:
 		t.Fatalf("len(Routes) = %d, want 1", len(conf.Routes))
 	}
 	r := conf.Routes[0]
-	if r.Name != "primary" {
-		t.Errorf("Name = %q, want %q", r.Name, "primary")
+	if r.ServerName != "primary" {
+		t.Errorf("ServerName = %q, want %q", r.ServerName, "primary")
 	}
 	if r.Legacy.String() != "https://legacy.example.com" {
 		t.Errorf("Legacy = %q, want %q", r.Legacy, "https://legacy.example.com")
