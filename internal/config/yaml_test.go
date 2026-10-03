@@ -435,6 +435,61 @@ routes:
 	}
 }
 
+func TestLoadYamlRoutePaths(t *testing.T) {
+	t.Parallel()
+	content := `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - server_name: "primary"
+    legacy: "https://legacy.example.com"
+    candidate: "https://candidate.example.com"
+    paths:
+      - "GET /api/users/{id}"
+      - "POST /api/orders/{id}"
+`
+	dir := writeConfigFile(t, "config.yml", content)
+
+	conf := loadYamlFromDir(dir)
+
+	if len(conf.Routes) != 1 {
+		t.Fatalf("len(Routes) = %d, want 1", len(conf.Routes))
+	}
+	paths := conf.Routes[0].Paths
+	if len(paths) != 2 {
+		t.Fatalf("len(Paths) = %d, want 2", len(paths))
+	}
+	if paths[0] != "GET /api/users/{id}" {
+		t.Errorf("Paths[0] = %q, want %q", paths[0], "GET /api/users/{id}")
+	}
+	if paths[1] != "POST /api/orders/{id}" {
+		t.Errorf("Paths[1] = %q, want %q", paths[1], "POST /api/orders/{id}")
+	}
+}
+
+func TestLoadYamlInvalidRoutePath(t *testing.T) {
+	t.Parallel()
+	content := `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+routes:
+  - server_name: "primary"
+    legacy: "https://legacy.example.com"
+    candidate: "https://candidate.example.com"
+    paths:
+      - "GET /api/users/{user-id}"
+`
+	dir := writeConfigFile(t, "config.yml", content)
+
+	msg := catchPanic(t, func() { loadYamlFromDir(dir) })
+	if !strings.Contains(msg, "improperly configured") {
+		t.Fatalf("panic message %q does not mention an invalid field", msg)
+	}
+	if !strings.Contains(msg, "GET /api/users/{user-id}") {
+		t.Fatalf("panic message %q does not mention the offending path", msg)
+	}
+}
+
 func TestLoadYamlLegacyEqualsCandidate(t *testing.T) {
 	t.Parallel()
 	content := `
