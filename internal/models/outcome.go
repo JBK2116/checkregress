@@ -1,6 +1,9 @@
 package models
 
 import (
+	"context"
+	"errors"
+	"net"
 	"net/http"
 )
 
@@ -50,4 +53,30 @@ type Outcome struct {
 	Body []byte
 	// Error stores any error that happened during the request lifecycle.
 	Error OutcomeErrorType
+}
+
+// FromResponse records a received response (resp.Body must already be read into body).
+func (s *Outcome) FromResponse(resp *http.Response, body []byte) {
+	s.Status = resp.StatusCode
+	s.Headers = resp.Header.Clone()
+	s.Body = body
+
+	switch {
+	case s.Status == http.StatusNotFound:
+		s.Error = ErrNotFound
+	case s.Status >= 500:
+		s.Error = ErrServer
+	case s.Status >= 400:
+		s.Error = ErrClient
+	}
+}
+
+// FromError records error with no usable response available.
+func (s *Outcome) FromError(err error) {
+	var ne net.Error
+	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout()) {
+		s.Error = ErrTimeout
+	} else {
+		s.Error = ErrTransport
+	}
 }
