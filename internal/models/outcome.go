@@ -60,6 +60,7 @@ func (s *Outcome) FromResponse(resp *http.Response, body []byte) {
 	s.Status = resp.StatusCode
 	s.Headers = resp.Header.Clone()
 	s.Body = body
+	s.Error = OutcomeErrorNone
 
 	switch {
 	case s.Status == http.StatusNotFound:
