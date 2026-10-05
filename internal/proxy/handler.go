@@ -23,7 +23,7 @@ func NewHandler(log *slog.Logger, routes []models.Route) Handler {
 
 	// build a proxy for each route group, keyed by its server name
 	for _, r := range routes {
-		pr := newReverseProxy(r, log)
+		pr := NewReverseProxy(r, log)
 		proxies[r.ServerName] = pr
 	}
 

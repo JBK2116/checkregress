@@ -26,8 +26,8 @@ func getOutcome(ctx context.Context) *models.Outcome {
 	return o
 }
 
-// newReverseProxy returns a new ReverseProxy configured with the provided route data.
-func newReverseProxy(route models.Route, log *slog.Logger) ReverseProxy {
+// NewReverseProxy returns a new ReverseProxy configured with the provided route data.
+func NewReverseProxy(route models.Route, log *slog.Logger) ReverseProxy {
 	pr := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(route.Legacy)
@@ -36,10 +36,10 @@ func newReverseProxy(route models.Route, log *slog.Logger) ReverseProxy {
 		ModifyResponse: func(resp *http.Response) error {
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				// route the proxy to ErrorHandler so the client is replied to properly.
+				// route the proxy to ErrorHandler so the client is replied too properly.
 				return err
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			resp.Body = io.NopCloser(bytes.NewReader(body))
 			if o := getOutcome(resp.Request.Context()); o != nil {
 				o.FromResponse(resp, body)
