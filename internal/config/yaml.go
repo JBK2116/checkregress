@@ -14,10 +14,6 @@ import (
 const (
 	// YamlFileName is the name of the application yaml configuration file.
 	yamlFileName = "config.yml"
-	// defaultMaxBodyBytes is the default value for the max_body_bytes field (1 MiB).
-	defaultMaxBodyBytes = 1 << 20
-	// maxBodyBytesLimit is the upperbound limit for the max_body_bytes field (10 MiB).
-	maxBodyBytesLimit = 10 << 20
 	// defaultShadowTimeoutMS is the default value for the shadow_timeout_ms field (5 seconds).
 	defaultShadowTimeoutMS = 5000
 	// maxShadowTimeoutMS is the upperbound limit for the shadow_timeout_ms field (30 seconds).
@@ -70,8 +66,6 @@ type RawYamlConfig struct {
 	Listen string `yaml:"listen"`
 	// AdminListen sets the port used to access the adminAPI.
 	AdminListen string `yaml:"admin_listen"`
-	// MaxBodyBytes sets the max amount of payload data read into memory for a diff.
-	MaxBodyBytes int `yaml:"max_body_bytes"`
 	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
 	ShadowTimeoutMS int `yaml:"shadow_timeout_ms"`
 	// ReadHeaderTimeoutMS sets the max amount of milliseconds the server waits to read a request's headers.
@@ -90,8 +84,6 @@ type YamlConfig struct {
 	Listen string
 	// AdminListen sets the port used to access the adminAPI.
 	AdminListen string
-	// MaxBodyBytes sets the max amount of payload data read into memory for a diff.
-	MaxBodyBytes int
 	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
 	ShadowTimeoutMS int
 	// ReadHeaderTimeoutMS sets the max amount of milliseconds the server waits to read a request's headers.
@@ -131,12 +123,6 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	validateAdminListen(c.AdminListen)
 	if c.Listen == c.AdminListen {
 		panic(fmt.Sprintf("%s: (listen = %s) (admin_listen = %s)", listenMismatchMessage, c.Listen, c.AdminListen))
-	}
-	if c.MaxBodyBytes > maxBodyBytesLimit {
-		panic(fmt.Sprintf("%s: max_body_bytes must be less than %d bytes", invalidFieldMessage, maxBodyBytesLimit))
-	}
-	if c.MaxBodyBytes < 0 {
-		panic(fmt.Sprintf("%s: max_body_bytes must be greater than 0 bytes", invalidFieldMessage))
 	}
 	if c.ShadowTimeoutMS > maxShadowTimeoutMS {
 		panic(fmt.Sprintf(
@@ -192,7 +178,6 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	var conf YamlConfig
 	conf.Listen = c.Listen
 	conf.AdminListen = c.AdminListen
-	conf.MaxBodyBytes = c.MaxBodyBytes
 	conf.ShadowTimeoutMS = c.ShadowTimeoutMS
 	conf.ReadHeaderTimeoutMS = c.ReadHeaderTimeoutMS
 	conf.IdleTimeoutMS = c.IdleTimeoutMS
@@ -226,9 +211,6 @@ func (c *RawYamlConfig) validate() YamlConfig {
 
 // applyDefaults sets appropriate defaults in the yaml configuration file.
 func (c *RawYamlConfig) applyDefaults() {
-	if c.MaxBodyBytes == 0 {
-		c.MaxBodyBytes = defaultMaxBodyBytes
-	}
 	if c.ShadowTimeoutMS == 0 {
 		c.ShadowTimeoutMS = defaultShadowTimeoutMS
 	}

@@ -169,16 +169,6 @@ func TestLoadYamlInvalidFieldValues(t *testing.T) {
 		want  string
 	}{
 		{
-			name:  "max_body_bytes exceeds limit",
-			field: "max_body_bytes: 10485761", // 10 MiB + 1
-			want:  "max_body_bytes",
-		},
-		{
-			name:  "max_body_bytes negative",
-			field: "max_body_bytes: -1",
-			want:  "max_body_bytes",
-		},
-		{
 			name:  "shadow_timeout_ms exceeds limit",
 			field: "shadow_timeout_ms: 30001", // 30 s + 1
 			want:  "shadow_timeout_ms",
@@ -627,12 +617,6 @@ func TestLoadYamlDefaults(t *testing.T) {
 
 	// Optional fields fall back to their defaults. The typed comparisons below
 	// also prove the values unmarshaled as ints, not strings.
-	if conf.MaxBodyBytes != defaultMaxBodyBytes {
-		t.Errorf("MaxBodyBytes = %d, want %d", conf.MaxBodyBytes, defaultMaxBodyBytes)
-	}
-	if _, ok := any(conf.MaxBodyBytes).(int); !ok {
-		t.Errorf("MaxBodyBytes has type %T, want int", conf.MaxBodyBytes)
-	}
 	if conf.ShadowTimeoutMS != defaultShadowTimeoutMS {
 		t.Errorf("ShadowTimeoutMS = %d, want %d", conf.ShadowTimeoutMS, defaultShadowTimeoutMS)
 	}
@@ -682,7 +666,6 @@ func TestLoadYamlDefaults(t *testing.T) {
 }
 
 func TestLoadYamlExplicitValues(t *testing.T) {
-	const usingMaxBodyBytes = 2097152
 	const usingShadowTimeoutMS = 15000
 	const usingReadHeaderTimeoutMS = 2500
 	const usingIdleTimeoutMS = 120000
@@ -691,7 +674,6 @@ func TestLoadYamlExplicitValues(t *testing.T) {
 	content := fmt.Sprintf(`
 listen: "0.0.0.0:9090"
 admin_listen: "127.0.0.1:9091"
-max_body_bytes: %d
 shadow_timeout_ms: %d
 read_header_timeout_ms: %d
 idle_timeout_ms: %d
@@ -701,7 +683,7 @@ routes:
     legacy: "https://legacy.example.com"
     secondary: "https://shadow.example.com"
     candidate: "https://candidate.example.com"
-`, usingMaxBodyBytes, usingShadowTimeoutMS, usingReadHeaderTimeoutMS, usingIdleTimeoutMS, usingE2ETimeoutMS)
+`, usingShadowTimeoutMS, usingReadHeaderTimeoutMS, usingIdleTimeoutMS, usingE2ETimeoutMS)
 	dir := writeConfigFile(t, "config.yml", content)
 
 	conf := loadYamlFromDir(dir)
@@ -711,9 +693,6 @@ routes:
 	}
 	if conf.AdminListen != "127.0.0.1:9091" {
 		t.Errorf("AdminListen = %q, want %q", conf.AdminListen, "127.0.0.1:9091")
-	}
-	if conf.MaxBodyBytes != usingMaxBodyBytes {
-		t.Errorf("MaxBodyBytes = %d, want %d", conf.MaxBodyBytes, usingMaxBodyBytes)
 	}
 	if conf.ShadowTimeoutMS != usingShadowTimeoutMS {
 		t.Errorf("ShadowTimeoutMS = %d, want %d", conf.ShadowTimeoutMS, usingShadowTimeoutMS)
