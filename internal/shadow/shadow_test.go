@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/JBK2116/checkregress/internal/models"
@@ -281,14 +280,14 @@ func TestFireSuccess(t *testing.T) {
 	s := newTestShadow()
 	outcome := &models.Outcome{Type: models.OutcomeCandidate}
 
-	in := httptest.NewRequest(http.MethodPost, "/api/users?x=1", strings.NewReader("req-body"))
+	in := httptest.NewRequest(http.MethodPost, "/api/users?x=1", nil)
 	in.Host = "client.example.com"
 	in.RemoteAddr = "192.0.2.1:4242"
 	in.Header.Set("Authorization", "Bearer abc")
 	in.Header.Set("Connection", "X-Custom")
 	in.Header.Set("X-Custom", "secret")
 
-	s.Fire(context.Background(), outcome, backendURL, in.Body, in)
+	s.Fire(context.Background(), outcome, backendURL, []byte("req-body"), in)
 
 	// Request side: the backend must receive the correctly rewritten request.
 	req := <-got
@@ -359,7 +358,7 @@ func TestFireErrorStatusCodes(t *testing.T) {
 			outcome := &models.Outcome{Type: models.OutcomeCandidate}
 			in := httptest.NewRequest(http.MethodGet, "/", nil)
 
-			s.Fire(context.Background(), outcome, mustParseURL(t, backend.URL), in.Body, in)
+			s.Fire(context.Background(), outcome, mustParseURL(t, backend.URL), nil, in)
 
 			if outcome.Status != tt.status {
 				t.Errorf("Status = %d, want %d", outcome.Status, tt.status)
@@ -377,7 +376,7 @@ func TestFireTransportError(t *testing.T) {
 	outcome := &models.Outcome{Type: models.OutcomeCandidate}
 	in := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	s.Fire(context.Background(), outcome, closedServerURL(t), in.Body, in)
+	s.Fire(context.Background(), outcome, closedServerURL(t), nil, in)
 
 	if outcome.Error != models.ErrTransport {
 		t.Errorf("Error = %v, want %v", outcome.Error, models.ErrTransport)

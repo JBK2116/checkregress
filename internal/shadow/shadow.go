@@ -1,6 +1,7 @@
 package shadow
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -32,15 +33,21 @@ func (s *Shadow) Fire(
 	ctx context.Context,
 	outcome *models.Outcome,
 	backend *url.URL,
-	inBody io.Reader,
+	inBody []byte,
 	in *http.Request,
 ) {
 	target := s.buildTarget(in, backend)
+
+	var rdr io.Reader = http.NoBody
+	if len(inBody) > 0 {
+		rdr = bytes.NewReader(inBody)
+	}
+
 	out, err := http.NewRequestWithContext(
 		ctx,
 		in.Method,
 		target.String(),
-		inBody) // #nosec G704 -> host pinned to config via buildTarget; only path/query derive from the request
+		rdr) // #nosec G704 -> host pinned to config via buildTarget; only path/query derive from the request
 	if err != nil {
 		outcome.FromError(err)
 		return
