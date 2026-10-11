@@ -67,8 +67,6 @@ type RawYamlConfig struct {
 	Listen string `yaml:"listen"`
 	// AdminListen sets the port used to access the adminAPI.
 	AdminListen string `yaml:"admin_listen"`
-	// ServerName identifies the service this instance fronts.
-	ServerName string `yaml:"server_name"`
 	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
 	ShadowTimeoutMS int `yaml:"shadow_timeout_ms"`
 	// ReadHeaderTimeoutMS sets the max amount of milliseconds the server waits to read a request's headers.
@@ -87,8 +85,6 @@ type YamlConfig struct {
 	Listen string
 	// AdminListen sets the port used to access the adminAPI.
 	AdminListen string
-	// ServerName identifies the service this instance fronts.
-	ServerName string
 	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
 	ShadowTimeoutMS int
 	// ReadHeaderTimeoutMS sets the max amount of milliseconds the server waits to read a request's headers.
@@ -122,9 +118,6 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	}
 	if c.AdminListen == "" {
 		panic(fmt.Sprintf("%s: admin_listen", missingFieldMessage))
-	}
-	if c.ServerName == "" {
-		panic(fmt.Sprintf("%s: server_name", missingFieldMessage))
 	}
 	validateListen(c.Listen)
 	validateAdminListen(c.AdminListen)
@@ -182,7 +175,6 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	var conf YamlConfig
 	conf.Listen = c.Listen
 	conf.AdminListen = c.AdminListen
-	conf.ServerName = c.ServerName
 	conf.ShadowTimeoutMS = c.ShadowTimeoutMS
 	conf.ReadHeaderTimeoutMS = c.ReadHeaderTimeoutMS
 	conf.IdleTimeoutMS = c.IdleTimeoutMS
