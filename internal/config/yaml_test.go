@@ -50,10 +50,10 @@ func validConfig() string {
 	return `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `
 }
 
@@ -63,11 +63,11 @@ func wrapConfig(field string) string {
 	return fmt.Sprintf(`
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
+server_name: "primary"
 %s
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `, field)
 }
 
@@ -77,10 +77,10 @@ func wrapListenAddr(listen, adminListen string) string {
 	return fmt.Sprintf(`
 listen: %q
 admin_listen: %q
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `, listen, adminListen)
 }
 
@@ -117,10 +117,10 @@ func TestLoadYamlMissingFields(t *testing.T) {
 			name: "missing listen",
 			content: `
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `,
 			want: "listen",
 		},
@@ -128,20 +128,31 @@ routes:
 			name: "missing admin_listen",
 			content: `
 listen: "127.0.0.1:8080"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `,
 			want: "admin_listen",
 		},
 		{
-			name: "missing routes",
+			name: "missing server_name",
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `,
-			want: "routes",
+			want: "server_name",
+		},
+		{
+			name: "missing route",
+			content: `
+listen: "127.0.0.1:8080"
+admin_listen: "127.0.0.1:8081"
+server_name: "primary"
+`,
+			want: "legacy",
 		},
 	}
 
@@ -234,24 +245,13 @@ func TestLoadYamlRouteValidation(t *testing.T) {
 		want    string
 	}{
 		{
-			name: "route missing server_name",
-			content: `
-listen: "127.0.0.1:8080"
-admin_listen: "127.0.0.1:8081"
-routes:
-  - legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
-`,
-			want: "server_name",
-		},
-		{
 			name: "route missing legacy",
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  candidate: "https://candidate.example.com"
 `,
 			want: "legacy",
 		},
@@ -260,9 +260,9 @@ routes:
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
 `,
 			want: "candidate",
 		},
@@ -284,61 +284,6 @@ routes:
 	}
 }
 
-func TestLoadYamlDuplicateRouteValues(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		content string
-		want    string
-	}{
-		{
-			name: "duplicate route server_name",
-			content: `
-listen: "127.0.0.1:8080"
-admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
-  - server_name: "primary"
-    legacy: "https://legacy2.example.com"
-    candidate: "https://candidate2.example.com"
-`,
-			want: "ServerName (primary)",
-		},
-		{
-			name: "duplicate route legacy",
-			content: `
-listen: "127.0.0.1:8080"
-admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
-  - server_name: "secondary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate2.example.com"
-`,
-			want: "Legacy (https://legacy.example.com)",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			dir := writeConfigFile(t, "config.yml", tt.content)
-
-			msg := catchPanic(t, func() { loadYamlFromDir(dir) })
-			if !strings.Contains(msg, "field value already exists") {
-				t.Fatalf("panic message %q does not mention a duplicate field", msg)
-			}
-			if !strings.Contains(msg, tt.want) {
-				t.Fatalf("panic message %q does not mention %q", msg, tt.want)
-			}
-		})
-	}
-}
-
 func TestLoadYamlInvalidRouteURLs(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -351,10 +296,10 @@ func TestLoadYamlInvalidRouteURLs(t *testing.T) {
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "legacy.example.com"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "legacy.example.com"
+  candidate: "https://candidate.example.com"
 `,
 			want: "legacy",
 		},
@@ -363,10 +308,10 @@ routes:
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "ftp://legacy.example.com"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "ftp://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `,
 			want: "legacy",
 		},
@@ -375,10 +320,10 @@ routes:
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "https://"
+  candidate: "https://candidate.example.com"
 `,
 			want: "legacy",
 		},
@@ -387,10 +332,10 @@ routes:
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "candidate.example.com"
 `,
 			want: "candidate",
 		},
@@ -399,11 +344,11 @@ routes:
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    secondary: "ftp://shadow.example.com"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
+  secondary: "ftp://shadow.example.com"
+  candidate: "https://candidate.example.com"
 `,
 			want: "secondary",
 		},
@@ -430,22 +375,19 @@ func TestLoadYamlRoutePaths(t *testing.T) {
 	content := `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
-    paths:
-      - "GET /api/users/{id}"
-      - "POST /api/orders/{id}"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
+  paths:
+    - "GET /api/users/{id}"
+    - "POST /api/orders/{id}"
 `
 	dir := writeConfigFile(t, "config.yml", content)
 
 	conf := loadYamlFromDir(dir)
 
-	if len(conf.Routes) != 1 {
-		t.Fatalf("len(Routes) = %d, want 1", len(conf.Routes))
-	}
-	paths := conf.Routes[0].Paths
+	paths := conf.Route.Paths
 	if len(paths) != 2 {
 		t.Fatalf("len(Paths) = %d, want 2", len(paths))
 	}
@@ -462,12 +404,12 @@ func TestLoadYamlInvalidRoutePath(t *testing.T) {
 	content := `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
-    paths:
-      - "GET /api/users/{user-id}"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
+  paths:
+    - "GET /api/users/{user-id}"
 `
 	dir := writeConfigFile(t, "config.yml", content)
 
@@ -485,10 +427,10 @@ func TestLoadYamlLegacyEqualsCandidate(t *testing.T) {
 	content := `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://same.example.com"
-    candidate: "https://same.example.com"
+server_name: "primary"
+route:
+  legacy: "https://same.example.com"
+  candidate: "https://same.example.com"
 `
 	dir := writeConfigFile(t, "config.yml", content)
 
@@ -503,11 +445,11 @@ func TestLoadYamlSecondaryEqualsCandidate(t *testing.T) {
 	content := `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    secondary: "https://candidate.example.com"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
+  secondary: "https://candidate.example.com"
+  candidate: "https://candidate.example.com"
 `
 	dir := writeConfigFile(t, "config.yml", content)
 
@@ -596,10 +538,10 @@ func TestLoadYamlListenEqualsAdminListen(t *testing.T) {
 	content := `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8080"
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
+server_name: "primary"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `
 	dir := writeConfigFile(t, "config.yml", content)
 
@@ -648,13 +590,13 @@ func TestLoadYamlDefaults(t *testing.T) {
 	if conf.AdminListen != "127.0.0.1:8081" {
 		t.Errorf("AdminListen = %q, want %q", conf.AdminListen, "127.0.0.1:8081")
 	}
+	if conf.ServerName != "primary" {
+		t.Errorf("ServerName = %q, want %q", conf.ServerName, "primary")
+	}
 
 	// Route-level default: secondary falls back to legacy.
-	if len(conf.Routes) != 1 {
-		t.Fatalf("len(Routes) = %d, want 1", len(conf.Routes))
-	}
-	legacy := conf.Routes[0].Legacy
-	secondary := conf.Routes[0].Secondary
+	legacy := conf.Route.Legacy
+	secondary := conf.Route.Secondary
 	if secondary.String() != legacy.String() {
 		t.Errorf("Secondary = %q, want %q", secondary, legacy)
 	}
@@ -674,15 +616,15 @@ func TestLoadYamlExplicitValues(t *testing.T) {
 	content := fmt.Sprintf(`
 listen: "0.0.0.0:9090"
 admin_listen: "127.0.0.1:9091"
+server_name: "primary"
 shadow_timeout_ms: %d
 read_header_timeout_ms: %d
 idle_timeout_ms: %d
 e2e_timeout_ms: %d
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    secondary: "https://shadow.example.com"
-    candidate: "https://candidate.example.com"
+route:
+  legacy: "https://legacy.example.com"
+  secondary: "https://shadow.example.com"
+  candidate: "https://candidate.example.com"
 `, usingShadowTimeoutMS, usingReadHeaderTimeoutMS, usingIdleTimeoutMS, usingE2ETimeoutMS)
 	dir := writeConfigFile(t, "config.yml", content)
 
@@ -707,13 +649,7 @@ routes:
 		t.Errorf("E2ETimeoutMS = %d, want %d", conf.E2ETimeoutMS, usingE2ETimeoutMS)
 	}
 
-	if len(conf.Routes) != 1 {
-		t.Fatalf("len(Routes) = %d, want 1", len(conf.Routes))
-	}
-	r := conf.Routes[0]
-	if r.ServerName != "primary" {
-		t.Errorf("ServerName = %q, want %q", r.ServerName, "primary")
-	}
+	r := conf.Route
 	if r.Legacy.String() != "https://legacy.example.com" {
 		t.Errorf("Legacy = %q, want %q", r.Legacy, "https://legacy.example.com")
 	}
@@ -736,12 +672,12 @@ func TestLoadYamlShadowTimeoutNotLessThanE2E(t *testing.T) {
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
+server_name: "primary"
 shadow_timeout_ms: 30000
 e2e_timeout_ms: 30000
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `,
 		},
 		{
@@ -749,12 +685,12 @@ routes:
 			content: `
 listen: "127.0.0.1:8080"
 admin_listen: "127.0.0.1:8081"
+server_name: "primary"
 shadow_timeout_ms: 20000
 e2e_timeout_ms: 15000
-routes:
-  - server_name: "primary"
-    legacy: "https://legacy.example.com"
-    candidate: "https://candidate.example.com"
+route:
+  legacy: "https://legacy.example.com"
+  candidate: "https://candidate.example.com"
 `,
 		},
 	}

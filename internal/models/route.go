@@ -9,9 +9,6 @@ import (
 
 // RawRoute represents a raw proxy route parsed from "config.yml".
 type RawRoute struct {
-	// ServerName is the hostname clients use to reach this route group. It
-	// must match the incoming request's "Host" header (ignoring the port).
-	ServerName string `yaml:"server_name"`
 	// Legacy is the full url of the legacy endpoint.
 	Legacy string `yaml:"legacy"`
 	// Secondary is the full url of the shadow legacy endpoint.
@@ -19,22 +16,19 @@ type RawRoute struct {
 	// Candidate is the full url of the new migration endpoint.
 	Candidate string `yaml:"candidate"`
 	// Paths is the list of http.ServeMux patterns (e.g. "GET /api/users/{id}")
-	// this route group shadows. Empty means no shadowing.
+	// this route shadows. Empty means no shadowing.
 	Paths []string `yaml:"paths,omitempty"`
 }
 
 // Route represents a proxy route in the application.
 type Route struct {
-	// ServerName is the hostname clients use to reach this route group. It
-	// must match the incoming request's "Host" header (ignoring the port).
-	ServerName string
 	// Legacy is the full url of the legacy endpoint.
 	Legacy *url.URL
 	// Secondary is the full url of the shadow legacy endpoint.
 	Secondary *url.URL
 	// Candidate is the full url of the new migration endpoint.
 	Candidate *url.URL
-	// Paths is the validated list of http.ServeMux patterns for this route group.
+	// Paths is the validated list of http.ServeMux patterns for this route.
 	Paths []string
 }
 
@@ -45,9 +39,6 @@ func (r *RawRoute) Validate() Route {
 	const secondaryMismatchMessage = "invalid yaml configuration (secondary cannot equal candidate)"
 	const invalidPathMessage = "invalid yaml configuration (field is improperly configured)"
 
-	if r.ServerName == "" {
-		panic(fmt.Sprintf("%s: server_name", missingFieldMessage))
-	}
 	if r.Legacy == "" {
 		panic(fmt.Sprintf("%s: legacy", missingFieldMessage))
 	}
@@ -62,9 +53,8 @@ func (r *RawRoute) Validate() Route {
 	}
 
 	parsed := Route{
-		ServerName: r.ServerName,
-		Legacy:     parseRouteURL("legacy", r.Legacy),
-		Candidate:  parseRouteURL("candidate", r.Candidate),
+		Legacy:    parseRouteURL("legacy", r.Legacy),
+		Candidate: parseRouteURL("candidate", r.Candidate),
 	}
 
 	if r.Secondary != "" {
@@ -88,7 +78,7 @@ func (r *RawRoute) Validate() Route {
 		panic(fmt.Sprintf("%s: paths (%s)", invalidPathMessage, strings.Join(r.Paths, ", ")))
 	}
 
-	// Copy the slice so Route.Paths is independent of RawRoute.Paths.
+	// Copy the slice so Route.Paths are independent of RawRoute.Paths.
 	parsed.Paths = append([]string(nil), r.Paths...)
 	return parsed
 }
@@ -111,7 +101,7 @@ func parseRouteURL(field, raw string) *url.URL {
 // ServeMux panics on invalid patterns; the deferred recover swallows that
 // panic, leaving the result at its zero value (false).
 func isValidPattern(pattern string) bool {
-	defer func() { recover() }()
+	defer func() { recover() }() //nolint:errcheck // This ensures that mux doesnt panic if the pattern is invalid.
 	mux := http.NewServeMux()
 	mux.HandleFunc(pattern, func(http.ResponseWriter, *http.Request) {})
 	return true
@@ -123,7 +113,7 @@ func isValidPattern(pattern string) bool {
 // duplicates, both of which make ServeMux panic. The deferred recover
 // swallows the panic, leaving the result at its zero value (false).
 func isValidPaths(paths []string) bool {
-	defer func() { recover() }()
+	defer func() { recover() }() //nolint:errcheck // This ensures that mux doesn't panic if any path is invalid.
 	mux := http.NewServeMux()
 	for _, p := range paths {
 		mux.HandleFunc(p, func(http.ResponseWriter, *http.Request) {})
@@ -133,9 +123,9 @@ func isValidPaths(paths []string) bool {
 
 // isHostPattern reports whether pattern contains a host component. A ServeMux
 // pattern is host-based unless it starts with "/" (path-only) or with
-// "<METHOD> " (method-prefixed path). Hosts are disallowed because routing
-// already keys off the route's ServerName, so a host inside a path pattern is
-// almost certainly a mistake.
+// "<METHOD> " (method-prefixed path). Hosts are disallowed because the proxy
+// fronts a single backend with no host-based routing, so a host inside a path
+// pattern is almost certainly a mistake.
 func isHostPattern(pattern string) bool {
 	if strings.HasPrefix(pattern, "/") {
 		return false

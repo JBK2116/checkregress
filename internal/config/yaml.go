@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/JBK2116/checkregress/internal/models"
 	"go.yaml.in/yaml/v4"
+
+	"github.com/JBK2116/checkregress/internal/models"
 )
 
 const (
@@ -66,6 +67,8 @@ type RawYamlConfig struct {
 	Listen string `yaml:"listen"`
 	// AdminListen sets the port used to access the adminAPI.
 	AdminListen string `yaml:"admin_listen"`
+	// ServerName identifies the service this instance fronts.
+	ServerName string `yaml:"server_name"`
 	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
 	ShadowTimeoutMS int `yaml:"shadow_timeout_ms"`
 	// ReadHeaderTimeoutMS sets the max amount of milliseconds the server waits to read a request's headers.
@@ -74,8 +77,8 @@ type RawYamlConfig struct {
 	IdleTimeoutMS int `yaml:"idle_timeout_ms"`
 	// E2ETimeoutMS sets the max amount of milliseconds the proxy waits for the full end-to-end proxied request.
 	E2ETimeoutMS int `yaml:"e2e_timeout_ms"`
-	// Routes stores the collection of endpoints to handle in the application.
-	Routes []models.RawRoute `yaml:"routes"`
+	// Route stores the single route (legacy, secondary, candidate) to handle.
+	Route models.RawRoute `yaml:"route"`
 }
 
 // YamlConfig stores the configuration settings in the root "config.yml".
@@ -84,6 +87,8 @@ type YamlConfig struct {
 	Listen string
 	// AdminListen sets the port used to access the adminAPI.
 	AdminListen string
+	// ServerName identifies the service this instance fronts.
+	ServerName string
 	// ShadowTimeoutMS sets the max amount of milliseconds a worker has to shadow a proxy request before timing out.
 	ShadowTimeoutMS int
 	// ReadHeaderTimeoutMS sets the max amount of milliseconds the server waits to read a request's headers.
@@ -92,8 +97,8 @@ type YamlConfig struct {
 	IdleTimeoutMS int
 	// E2ETimeoutMS sets the max amount of milliseconds the proxy waits for the full end-to-end proxied request.
 	E2ETimeoutMS int
-	// Routes stores the collection of endpoints to handle in the application.
-	Routes []models.Route
+	// Route stores the single route (legacy, secondary, candidate) to handle.
+	Route models.Route
 }
 
 // LoadYaml loads the YAML config file (named "config.yml") from the current
@@ -110,7 +115,6 @@ func LoadYaml() YamlConfig {
 func (c *RawYamlConfig) validate() YamlConfig {
 	const missingFieldMessage = "invalid yaml configuration (missing required field)"
 	const invalidFieldMessage = "invalid yaml configuration (field is improperly configured)"
-	const duplicateFieldMessage = "invalid yaml configuration (field value already exists)"
 	const listenMismatchMessage = "invalid yaml configuration (listen cannot equal admin_listen)"
 
 	if c.Listen == "" {
@@ -118,6 +122,9 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	}
 	if c.AdminListen == "" {
 		panic(fmt.Sprintf("%s: admin_listen", missingFieldMessage))
+	}
+	if c.ServerName == "" {
+		panic(fmt.Sprintf("%s: server_name", missingFieldMessage))
 	}
 	validateListen(c.Listen)
 	validateAdminListen(c.AdminListen)
@@ -160,9 +167,6 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	if c.E2ETimeoutMS < 0 {
 		panic(fmt.Sprintf("%s: e2e_timeout_ms must be greater than 0 milliseconds", invalidFieldMessage))
 	}
-	if len(c.Routes) == 0 {
-		panic(fmt.Sprintf("%s: routes", missingFieldMessage))
-	}
 	c.applyDefaults()
 
 	// The shadow comparison must fit inside the overall request budget, so
@@ -178,34 +182,13 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	var conf YamlConfig
 	conf.Listen = c.Listen
 	conf.AdminListen = c.AdminListen
+	conf.ServerName = c.ServerName
 	conf.ShadowTimeoutMS = c.ShadowTimeoutMS
 	conf.ReadHeaderTimeoutMS = c.ReadHeaderTimeoutMS
 	conf.IdleTimeoutMS = c.IdleTimeoutMS
 	conf.E2ETimeoutMS = c.E2ETimeoutMS
 
-	seenServerName := map[string]bool{}
-	seenLegacy := map[string]bool{}
-
-	routes := make([]models.Route, len(c.Routes))
-
-	for i := range c.Routes {
-		// ensure that each route has a unique server name to prevent router panics
-		serverName := c.Routes[i].ServerName
-		if seenServerName[serverName] {
-			panic(fmt.Sprintf("%s: ServerName (%s)", duplicateFieldMessage, serverName))
-		}
-		seenServerName[serverName] = true
-		// ensure that each route has a unique legacy url to prevent router configuration mismanagement
-		legacy := c.Routes[i].Legacy
-		if seenLegacy[legacy] {
-			panic(fmt.Sprintf("%s: Legacy (%s)", duplicateFieldMessage, legacy))
-		}
-		seenLegacy[legacy] = true
-		// add this to the yaml config for use
-		routes[i] = c.Routes[i].Validate()
-	}
-
-	conf.Routes = routes
+	conf.Route = c.Route.Validate()
 	return conf
 }
 

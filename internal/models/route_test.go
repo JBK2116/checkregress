@@ -10,9 +10,8 @@ import (
 // Validate, so path-specific tests only need to set Paths.
 func validRawRoute() RawRoute {
 	return RawRoute{
-		ServerName: "primary",
-		Legacy:     "https://legacy.example.com",
-		Candidate:  "https://candidate.example.com",
+		Legacy:    "https://legacy.example.com",
+		Candidate: "https://candidate.example.com",
 	}
 }
 
