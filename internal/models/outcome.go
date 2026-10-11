@@ -45,6 +45,9 @@ type Outcome struct {
 	// CanonicalPath holds the canonical route pattern (e.g. "GET /api/users/{id}")
 	// that matched the request, used to bucket outcomes for diffing and storage.
 	CanonicalPath string
+	// URL is the full URL forwarded to the backend, including scheme, host,
+	// path, and query.
+	URL string
 	// Status stores the HTTP status result of the request.
 	Status int
 	// Headers stores the headers received from the request.

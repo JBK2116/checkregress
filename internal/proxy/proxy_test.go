@@ -74,10 +74,19 @@ func TestReverseProxyForwardsToLegacy(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "6.6.6.6")
 
 	rec := httptest.NewRecorder()
-	rp.Proxy.ServeHTTP(rec, req)
+	outcome := rp.Serve(rec, req, "GET /api/orders")
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if outcome.Type != models.OutcomeLegacy {
+		t.Errorf("Type = %v, want %v", outcome.Type, models.OutcomeLegacy)
+	}
+	if outcome.CanonicalPath != "GET /api/orders" {
+		t.Errorf("CanonicalPath = %q, want %q", outcome.CanonicalPath, "GET /api/orders")
+	}
+	if wantURL := legacy.String() + "/api/orders?page=2"; outcome.URL != wantURL {
+		t.Errorf("URL = %q, want %q", outcome.URL, wantURL)
 	}
 
 	info := <-got

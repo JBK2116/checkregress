@@ -332,6 +332,11 @@ func TestFireSuccess(t *testing.T) {
 	if outcome.Error != models.OutcomeErrorNone {
 		t.Errorf("Error = %v, want %v", outcome.Error, models.OutcomeErrorNone)
 	}
+
+	// The outcome must capture the full URL forwarded to the backend.
+	if wantURL := backendURL.String() + "/api/users?x=1"; outcome.URL != wantURL {
+		t.Errorf("URL = %q, want %q", outcome.URL, wantURL)
+	}
 }
 
 func TestFireErrorStatusCodes(t *testing.T) {

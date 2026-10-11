@@ -37,6 +37,7 @@ func (s *Shadow) Fire(
 	in *http.Request,
 ) {
 	target := s.buildTarget(in, backend)
+	outcome.URL = target.String()
 
 	var rdr io.Reader = http.NoBody
 	if len(inBody) > 0 {

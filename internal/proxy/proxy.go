@@ -32,6 +32,9 @@ func NewReverseProxy(route models.Route, log *slog.Logger) ReverseProxy {
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(route.Legacy)
 			pr.SetXForwarded()
+			if o := getOutcome(pr.Out.Context()); o != nil {
+				o.URL = pr.Out.URL.String()
+			}
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			body, err := io.ReadAll(resp.Body)
