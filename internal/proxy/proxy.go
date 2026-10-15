@@ -27,8 +27,9 @@ func getOutcome(ctx context.Context) *models.Outcome {
 }
 
 // NewReverseProxy returns a new ReverseProxy configured with the provided route data.
-func NewReverseProxy(route models.Route, log *slog.Logger) ReverseProxy {
+func NewReverseProxy(route models.Route, log *slog.Logger, transport *http.Transport) ReverseProxy {
 	pr := &httputil.ReverseProxy{
+		Transport: transport,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(route.Legacy)
 			pr.SetXForwarded()
