@@ -27,8 +27,9 @@ func getOutcome(ctx context.Context) *models.Outcome {
 }
 
 // NewReverseProxy returns a new ReverseProxy configured with the provided route data.
-func NewReverseProxy(route models.Route, log *slog.Logger) ReverseProxy {
+func NewReverseProxy(route models.Route, log *slog.Logger, transport *http.Transport) ReverseProxy {
 	pr := &httputil.ReverseProxy{
+		Transport: transport,
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(route.Legacy)
 			pr.SetXForwarded()
@@ -37,6 +38,10 @@ func NewReverseProxy(route models.Route, log *slog.Logger) ReverseProxy {
 			}
 		},
 		ModifyResponse: func(resp *http.Response) error {
+			o := getOutcome(resp.Request.Context())
+			if o == nil {
+				return nil
+			}
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
 				// route the proxy to ErrorHandler so the client is replied too properly.
@@ -44,9 +49,7 @@ func NewReverseProxy(route models.Route, log *slog.Logger) ReverseProxy {
 			}
 			_ = resp.Body.Close()
 			resp.Body = io.NopCloser(bytes.NewReader(body))
-			if o := getOutcome(resp.Request.Context()); o != nil {
-				o.FromResponse(resp, body)
-			}
+			o.FromResponse(resp, body)
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
@@ -66,12 +69,16 @@ func NewReverseProxy(route models.Route, log *slog.Logger) ReverseProxy {
 }
 
 // Serve proxies the request and returns the outcome once it is done.
-func (p *ReverseProxy) Serve(w http.ResponseWriter, r *http.Request, canonicalPath string) *models.Outcome {
-	o := &models.Outcome{
-		Type:          models.OutcomeLegacy,
-		CanonicalPath: canonicalPath,
+func (p *ReverseProxy) Serve(w http.ResponseWriter, r *http.Request, canonicalPath string, shadow bool) *models.Outcome {
+	if shadow {
+		o := &models.Outcome{
+			Type:          models.OutcomeLegacy,
+			CanonicalPath: canonicalPath,
+		}
+		ctx := context.WithValue(r.Context(), outcomeKey{}, o)
+		p.Proxy.ServeHTTP(w, r.WithContext(ctx))
+		return o
 	}
-	ctx := context.WithValue(r.Context(), outcomeKey{}, o)
-	p.Proxy.ServeHTTP(w, r.WithContext(ctx))
-	return o
+	p.Proxy.ServeHTTP(w, r)
+	return nil
 }

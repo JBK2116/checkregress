@@ -65,7 +65,7 @@ func TestReverseProxyForwardsToLegacy(t *testing.T) {
 	t.Cleanup(backend.Close)
 
 	legacy := mustParseURL(t, backend.URL)
-	rp := NewReverseProxy(models.Route{Legacy: legacy}, discardLogger())
+	rp := NewReverseProxy(models.Route{Legacy: legacy}, discardLogger(), &http.Transport{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/orders?page=2", nil)
 	req.Host = "client.example.com"
@@ -74,7 +74,7 @@ func TestReverseProxyForwardsToLegacy(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "6.6.6.6")
 
 	rec := httptest.NewRecorder()
-	outcome := rp.Serve(rec, req, "GET /api/orders")
+	outcome := rp.Serve(rec, req, "GET /api/orders", true)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
@@ -110,7 +110,7 @@ func TestReverseProxyForwardsToLegacy(t *testing.T) {
 func TestReverseProxyErrorReturnsBadGateway(t *testing.T) {
 	t.Parallel()
 
-	rp := NewReverseProxy(models.Route{Legacy: closedServerURL(t)}, discardLogger())
+	rp := NewReverseProxy(models.Route{Legacy: closedServerURL(t)}, discardLogger(), &http.Transport{})
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	req.Host = "client.example.com"
@@ -128,7 +128,7 @@ func TestReverseProxyErrorLogs(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 
-	rp := NewReverseProxy(models.Route{Legacy: closedServerURL(t)}, logger)
+	rp := NewReverseProxy(models.Route{Legacy: closedServerURL(t)}, logger, &http.Transport{})
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	req.Host = "client.example.com"
