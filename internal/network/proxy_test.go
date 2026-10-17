@@ -115,7 +115,7 @@ func TestReverseProxyErrorReturnsBadGateway(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	req.Host = "client.example.com"
 	rec := httptest.NewRecorder()
-	rp.Proxy.ServeHTTP(rec, req)
+	rp.Serve(rec, req, "GET /health", true)
 
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadGateway)
@@ -133,7 +133,7 @@ func TestReverseProxyErrorLogs(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	req.Host = "client.example.com"
 	rec := httptest.NewRecorder()
-	rp.Proxy.ServeHTTP(rec, req)
+	rp.proxy.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadGateway)

@@ -16,8 +16,8 @@ type outcomeKey struct{}
 
 // ReverseProxy handles routing the client request to the correct backend server.
 type ReverseProxy struct {
-	// Proxy provides functionality for the struct.
-	Proxy *httputil.ReverseProxy
+	// proxy provides functionality for the struct.
+	proxy *httputil.ReverseProxy
 }
 
 // getOutcome retrieves the *Outcome object from the provided context.
@@ -27,7 +27,7 @@ func getOutcome(ctx context.Context) *models.Outcome {
 }
 
 // NewReverseProxy returns a new ReverseProxy configured with the provided route data.
-func NewReverseProxy(route models.Route, log *slog.Logger, transport *http.Transport) ReverseProxy {
+func NewReverseProxy(route models.Route, log *slog.Logger, transport *http.Transport) *ReverseProxy {
 	pr := &httputil.ReverseProxy{
 		Transport: transport,
 		Rewrite: func(pr *httputil.ProxyRequest) {
@@ -65,7 +65,7 @@ func NewReverseProxy(route models.Route, log *slog.Logger, transport *http.Trans
 			http.Error(w, "bad gateway", http.StatusBadGateway)
 		},
 	}
-	return ReverseProxy{Proxy: pr}
+	return &ReverseProxy{proxy: pr}
 }
 
 // Serve proxies the request and returns the outcome once it is done.
@@ -76,9 +76,9 @@ func (p *ReverseProxy) Serve(w http.ResponseWriter, r *http.Request, canonicalPa
 			CanonicalPath: canonicalPath,
 		}
 		ctx := context.WithValue(r.Context(), outcomeKey{}, o)
-		p.Proxy.ServeHTTP(w, r.WithContext(ctx))
+		p.proxy.ServeHTTP(w, r.WithContext(ctx))
 		return o
 	}
-	p.Proxy.ServeHTTP(w, r)
+	p.proxy.ServeHTTP(w, r)
 	return nil
 }
