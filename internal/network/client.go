@@ -1,6 +1,8 @@
 package network
 
-import "net/http"
+import (
+	"net/http"
+)
 
 // ShadowClient is the driver that handles outbound requests for the shadows.
 type ShadowClient struct {
@@ -19,9 +21,9 @@ func NewShadowClient() *ShadowClient {
 	return &ShadowClient{client: client}
 }
 
-// Do sends an HTTP request and returns an HTTP response.
-func (c *ShadowClient) Do(req *http.Request) (*http.Response, error) {
-	return c.client.Do(req)
+// GetClient returns the underlying [http.Client].
+func (c *ShadowClient) GetClient() *http.Client {
+	return c.client
 }
 
 // CloseIdleConnections closes any connections on its Transport which were previously connected from previous requests but are now sitting idle in a "keep-alive" state.
