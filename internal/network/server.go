@@ -17,8 +17,8 @@ type Server struct {
 // connection stays open. ReadTimeout and WriteTimeout are intentionally left
 // at zero so that slow or streaming requests to the proxied application are
 // never truncated.
-func NewServer(addr string, handler http.Handler, readHeaderTimeout, idleTimeout time.Duration) Server {
-	return Server{
+func NewServer(addr string, handler http.Handler, readHeaderTimeout, idleTimeout time.Duration) *Server {
+	return &Server{
 		srv: &http.Server{
 			Addr:              addr,
 			Handler:           handler,
@@ -29,7 +29,7 @@ func NewServer(addr string, handler http.Handler, readHeaderTimeout, idleTimeout
 }
 
 // ListenAndServe listens on the server's configured address and serves incoming
-// requests. It returns http.ErrServerClosed on a clean shutdown.
+// requests. It returns [http.ErrServerClosed] on a clean shutdown.
 func (s Server) ListenAndServe() error {
 	return s.srv.ListenAndServe()
 }
