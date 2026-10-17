@@ -27,9 +27,9 @@ func getOutcome(ctx context.Context) *models.Outcome {
 }
 
 // NewReverseProxy returns a new ReverseProxy configured with the provided route data.
-func NewReverseProxy(route models.Route, log *slog.Logger, transport *http.Transport) *ReverseProxy {
+func NewReverseProxy(route models.Route, log *slog.Logger) *ReverseProxy {
 	pr := &httputil.ReverseProxy{
-		Transport: transport,
+		Transport: newProxyTransport(),
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(route.Legacy)
 			pr.SetXForwarded()
@@ -81,4 +81,11 @@ func (p *ReverseProxy) Serve(w http.ResponseWriter, r *http.Request, canonicalPa
 	}
 	p.proxy.ServeHTTP(w, r)
 	return nil
+}
+
+// CloseIdleConnections closes any connections on its Transport which were previously connected from previous requests but are now sitting idle in a "keep-alive" state.
+func (p *ReverseProxy) CloseIdleConnections() {
+	if t, ok := p.proxy.Transport.(interface{ CloseIdleConnections() }); ok {
+		t.CloseIdleConnections()
+	}
 }

@@ -54,17 +54,17 @@ func newTransport(responseHeaderTimeout time.Duration, disableCompression bool) 
 	}
 }
 
-// NewProxyTransport returns a transport for the reverse proxy.
+// newProxyTransport returns a transport for the reverse proxy.
 //
 // Compression is disabled so responses are forwarded exactly as the backend sent them.
 // It is isolated from the client transport so client load can never starve the proxy.
-func NewProxyTransport() *http.Transport {
+func newProxyTransport() *http.Transport {
 	return newTransport(proxyResponseHeaderTimeout, true)
 }
 
-// NewClientTransport returns a transport for outbound shadow client requests.
+// newShadowTransport returns a transport for outbound shadow client requests.
 //
 // Callers must still apply a per-request context deadline, which also covers body reads.
-func NewClientTransport() *http.Transport {
+func newShadowTransport() *http.Transport {
 	return newTransport(clientResponseHeaderTimeout, false)
 }
