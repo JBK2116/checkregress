@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"net/http"
 	"time"
 )
@@ -30,6 +31,11 @@ func NewServer(addr string, handler http.Handler, readHeaderTimeout, idleTimeout
 
 // ListenAndServe listens on the server's configured address and serves incoming
 // requests. It returns [http.ErrServerClosed] on a clean shutdown.
-func (s Server) ListenAndServe() error {
+func (s *Server) ListenAndServe() error {
 	return s.srv.ListenAndServe()
+}
+
+// Shutdown gracefully stops the server, waiting for in-flight requests until ctx expires.
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.srv.Shutdown(ctx)
 }
