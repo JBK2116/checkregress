@@ -9,12 +9,12 @@ type Matcher struct {
 }
 
 // NewMatcher returns a Matcher configured with the provided route data.
-func NewMatcher(paths []string) Matcher {
+func NewMatcher(paths []string) *Matcher {
 	mux := http.NewServeMux()
 	for _, p := range paths {
 		mux.HandleFunc(p, func(http.ResponseWriter, *http.Request) {})
 	}
-	return Matcher{mux: mux}
+	return &Matcher{mux: mux}
 }
 
 // ShouldShadow determines if the incoming request matches an existing path that can be shadowed.
