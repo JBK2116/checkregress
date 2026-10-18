@@ -26,8 +26,15 @@ func getOutcome(ctx context.Context) *models.Outcome {
 	return o
 }
 
+// readCloser couples a reader with a separate closer so a re-wrapped response
+// body can still close the original underlying body.
+type readCloser struct {
+	io.Reader
+	io.Closer
+}
+
 // NewReverseProxy returns a new ReverseProxy configured with the provided route data.
-func NewReverseProxy(route models.Route, log *slog.Logger) *ReverseProxy {
+func NewReverseProxy(route models.Route, log *slog.Logger, maxBodyBytes int) *ReverseProxy {
 	pr := &httputil.ReverseProxy{
 		Transport: newProxyTransport(),
 		Rewrite: func(pr *httputil.ProxyRequest) {
@@ -42,14 +49,19 @@ func NewReverseProxy(route models.Route, log *slog.Logger) *ReverseProxy {
 			if o == nil {
 				return nil
 			}
-			body, err := io.ReadAll(resp.Body)
+			// Capture only the first maxBodyBytes for the diff, but stream the
+			// full response to the client.
+			head, err := io.ReadAll(io.LimitReader(resp.Body, int64(maxBodyBytes)))
 			if err != nil {
 				// route the proxy to ErrorHandler so the client is replied too properly.
+				resp.Body.Close()
 				return err
 			}
-			_ = resp.Body.Close()
-			resp.Body = io.NopCloser(bytes.NewReader(body))
-			o.FromResponse(resp, body)
+			resp.Body = &readCloser{
+				Reader: io.MultiReader(bytes.NewReader(head), resp.Body),
+				Closer: resp.Body,
+			}
+			o.FromResponse(resp, head)
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {

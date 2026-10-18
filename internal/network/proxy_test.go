@@ -65,7 +65,7 @@ func TestReverseProxyForwardsToLegacy(t *testing.T) {
 	t.Cleanup(backend.Close)
 
 	legacy := mustParseURL(t, backend.URL)
-	rp := NewReverseProxy(models.Route{Legacy: legacy}, discardLogger())
+	rp := NewReverseProxy(models.Route{Legacy: legacy}, discardLogger(), 1<<20)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/orders?page=2", nil)
 	req.Host = "client.example.com"
@@ -110,7 +110,7 @@ func TestReverseProxyForwardsToLegacy(t *testing.T) {
 func TestReverseProxyErrorReturnsBadGateway(t *testing.T) {
 	t.Parallel()
 
-	rp := NewReverseProxy(models.Route{Legacy: closedServerURL(t)}, discardLogger())
+	rp := NewReverseProxy(models.Route{Legacy: closedServerURL(t)}, discardLogger(), 1<<20)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	req.Host = "client.example.com"
@@ -128,7 +128,7 @@ func TestReverseProxyErrorLogs(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 
-	rp := NewReverseProxy(models.Route{Legacy: closedServerURL(t)}, logger)
+	rp := NewReverseProxy(models.Route{Legacy: closedServerURL(t)}, logger, 1<<20)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	req.Host = "client.example.com"
@@ -144,5 +144,37 @@ func TestReverseProxyErrorLogs(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Errorf("log output %q does not contain %q", output, want)
 		}
+	}
+}
+
+func TestReverseProxyStreamsFullBodyCapsCapture(t *testing.T) {
+	t.Parallel()
+
+	const maxBody = 8
+	const body = "0123456789ABCDEFGHIJ" // 20 bytes > maxBody
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(backend.Close)
+
+	legacy := mustParseURL(t, backend.URL)
+	rp := NewReverseProxy(models.Route{Legacy: legacy}, discardLogger(), maxBody)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	outcome := rp.Serve(rec, req, "GET /", true)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	// The client must receive the full body.
+	if rec.Body.String() != body {
+		t.Errorf("client body = %q, want full body %q", rec.Body.String(), body)
+	}
+	// The outcome must capture only the first maxBody bytes.
+	if string(outcome.Body) != body[:maxBody] {
+		t.Errorf("outcome body = %q, want capped body %q", string(outcome.Body), body[:maxBody])
 	}
 }

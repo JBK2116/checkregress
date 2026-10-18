@@ -203,6 +203,21 @@ func TestLoadYamlInvalidFieldValues(t *testing.T) {
 			field: "e2e_timeout_ms: -1",
 			want:  "e2e_timeout_ms",
 		},
+		{
+			name:  "max_body_bytes below minimum",
+			field: "max_body_bytes: 1024", // 1 KiB < MinBodyBytes (64 KiB)
+			want:  "max_body_bytes",
+		},
+		{
+			name:  "max_body_bytes exceeds maximum",
+			field: "max_body_bytes: 10485761", // 10 MiB + 1
+			want:  "max_body_bytes",
+		},
+		{
+			name:  "max_body_bytes negative",
+			field: "max_body_bytes: -1",
+			want:  "max_body_bytes",
+		},
 	}
 
 	for _, tt := range tests {
@@ -555,6 +570,12 @@ func TestLoadYamlDefaults(t *testing.T) {
 	if _, ok := any(conf.E2ETimeoutMS).(int); !ok {
 		t.Errorf("E2ETimeoutMS has type %T, want int", conf.E2ETimeoutMS)
 	}
+	if conf.MaxBodyBytes != DefaultBodyBytes {
+		t.Errorf("MaxBodyBytes = %d, want %d", conf.MaxBodyBytes, DefaultBodyBytes)
+	}
+	if _, ok := any(conf.MaxBodyBytes).(int); !ok {
+		t.Errorf("MaxBodyBytes has type %T, want int", conf.MaxBodyBytes)
+	}
 
 	if conf.Listen != "127.0.0.1:8080" {
 		t.Errorf("Listen = %q, want %q", conf.Listen, "127.0.0.1:8080")
@@ -581,6 +602,7 @@ func TestLoadYamlExplicitValues(t *testing.T) {
 	const usingReadHeaderTimeoutMS = 2500
 	const usingIdleTimeoutMS = 120000
 	const usingE2ETimeoutMS = 90000
+	const usingMaxBodyBytes = 5 << 20 // 5 MiB
 	t.Parallel()
 	content := fmt.Sprintf(`
 listen: "0.0.0.0:9090"
@@ -589,11 +611,12 @@ shadow_timeout_ms: %d
 read_header_timeout_ms: %d
 idle_timeout_ms: %d
 e2e_timeout_ms: %d
+max_body_bytes: %d
 route:
   legacy: "https://legacy.example.com"
   secondary: "https://shadow.example.com"
   candidate: "https://candidate.example.com"
-`, usingShadowTimeoutMS, usingReadHeaderTimeoutMS, usingIdleTimeoutMS, usingE2ETimeoutMS)
+`, usingShadowTimeoutMS, usingReadHeaderTimeoutMS, usingIdleTimeoutMS, usingE2ETimeoutMS, usingMaxBodyBytes)
 	dir := writeConfigFile(t, "config.yml", content)
 
 	conf := loadYamlFromDir(dir)
@@ -615,6 +638,9 @@ route:
 	}
 	if conf.E2ETimeoutMS != usingE2ETimeoutMS {
 		t.Errorf("E2ETimeoutMS = %d, want %d", conf.E2ETimeoutMS, usingE2ETimeoutMS)
+	}
+	if conf.MaxBodyBytes != usingMaxBodyBytes {
+		t.Errorf("MaxBodyBytes = %d, want %d", conf.MaxBodyBytes, usingMaxBodyBytes)
 	}
 
 	r := conf.Route

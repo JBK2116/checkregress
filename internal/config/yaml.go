@@ -31,6 +31,12 @@ const (
 	defaultE2ETimeoutMS = 60000
 	// maxE2ETimeoutMS is the upperbound limit for the e2e_timeout_ms field (600 seconds).
 	maxE2ETimeoutMS = 600000
+	// MinBodyBytes is the minimum amount of bytes the proxy will read from the response body.
+	MinBodyBytes = 64 << 10 // 64 KiB
+	// DefaultBodyBytes is the default amount of bytes the proxy will read from the response body.
+	DefaultBodyBytes = 1 << 20 // 1 MiB
+	// MaxBodyBytes is the maximum amount of bytes the proxy will read from the response body.
+	MaxBodyBytes = 10 << 20 // 10 MiB
 	// minPort is the lowest valid port number (port 0 is reserved).
 	minPort = 1
 	// maxPort is the highest valid port number.
@@ -75,6 +81,8 @@ type RawYamlConfig struct {
 	IdleTimeoutMS int `yaml:"idle_timeout_ms"`
 	// E2ETimeoutMS sets the max amount of milliseconds the proxy waits for the full end-to-end proxied request.
 	E2ETimeoutMS int `yaml:"e2e_timeout_ms"`
+	// MaxBodyBytes sets the max amount of bytes the proxy will read from the response body.
+	MaxBodyBytes int `yaml:"max_body_bytes"`
 	// Route stores the single route (legacy, secondary, candidate) to handle.
 	Route models.RawRoute `yaml:"route"`
 }
@@ -93,6 +101,8 @@ type YamlConfig struct {
 	IdleTimeoutMS int
 	// E2ETimeoutMS sets the max amount of milliseconds the proxy waits for the full end-to-end proxied request.
 	E2ETimeoutMS int
+	// MaxBodyBytes sets the max amount of bytes the proxy will read from the response body.
+	MaxBodyBytes int
 	// Route stores the single route (legacy, secondary, candidate) to handle.
 	Route models.Route
 }
@@ -162,6 +172,13 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	}
 	c.applyDefaults()
 
+	if c.MaxBodyBytes < MinBodyBytes {
+		panic(fmt.Sprintf("%s: max_body_bytes must be greater than or equal to %d bytes", invalidFieldMessage, MinBodyBytes))
+	}
+	if c.MaxBodyBytes > MaxBodyBytes {
+		panic(fmt.Sprintf("%s: max_body_bytes must be less than or equal to %d bytes", invalidFieldMessage, MaxBodyBytes))
+	}
+
 	// The shadow comparison must fit inside the overall request budget, so
 	// shadow_timeout_ms must be strictly less than e2e_timeout_ms. This check
 	// runs after defaults so both values are final.
@@ -179,6 +196,7 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	conf.ReadHeaderTimeoutMS = c.ReadHeaderTimeoutMS
 	conf.IdleTimeoutMS = c.IdleTimeoutMS
 	conf.E2ETimeoutMS = c.E2ETimeoutMS
+	conf.MaxBodyBytes = c.MaxBodyBytes
 
 	conf.Route = c.Route.Validate()
 	return conf
@@ -197,6 +215,9 @@ func (c *RawYamlConfig) applyDefaults() {
 	}
 	if c.E2ETimeoutMS == 0 {
 		c.E2ETimeoutMS = defaultE2ETimeoutMS
+	}
+	if c.MaxBodyBytes == 0 {
+		c.MaxBodyBytes = DefaultBodyBytes
 	}
 }
 

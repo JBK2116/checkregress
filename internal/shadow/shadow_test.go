@@ -287,7 +287,7 @@ func TestFireSuccess(t *testing.T) {
 	in.Header.Set("Connection", "X-Custom")
 	in.Header.Set("X-Custom", "secret")
 
-	s.Fire(context.Background(), outcome, backendURL, []byte("req-body"), in)
+	s.Fire(context.Background(), outcome, backendURL, []byte("req-body"), in, 1<<20)
 
 	// Request side: the backend must receive the correctly rewritten request.
 	req := <-got
@@ -363,7 +363,7 @@ func TestFireErrorStatusCodes(t *testing.T) {
 			outcome := &models.Outcome{Type: models.OutcomeCandidate}
 			in := httptest.NewRequest(http.MethodGet, "/", nil)
 
-			s.Fire(context.Background(), outcome, mustParseURL(t, backend.URL), nil, in)
+			s.Fire(context.Background(), outcome, mustParseURL(t, backend.URL), nil, in, 1<<20)
 
 			if outcome.Status != tt.status {
 				t.Errorf("Status = %d, want %d", outcome.Status, tt.status)
@@ -381,7 +381,7 @@ func TestFireTransportError(t *testing.T) {
 	outcome := &models.Outcome{Type: models.OutcomeCandidate}
 	in := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	s.Fire(context.Background(), outcome, closedServerURL(t), nil, in)
+	s.Fire(context.Background(), outcome, closedServerURL(t), nil, in, 1<<20)
 
 	if outcome.Error != models.ErrTransport {
 		t.Errorf("Error = %v, want %v", outcome.Error, models.ErrTransport)

@@ -35,6 +35,7 @@ func (s *Shadow) Fire(
 	backend *url.URL,
 	inBody []byte,
 	in *http.Request,
+	maxBodybytes int,
 ) {
 	target := s.buildTarget(in, backend)
 	outcome.URL = target.String()
@@ -66,12 +67,14 @@ func (s *Shadow) Fire(
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	limReader := io.LimitReader(resp.Body, int64(maxBodybytes))
+	buf, err := io.ReadAll(limReader)
+
 	if err != nil {
 		outcome.FromError(err)
 		return
 	}
-	outcome.FromResponse(resp, body)
+	outcome.FromResponse(resp, buf)
 }
 
 // setXForwarded sets the X-Forwarded-For, X-Forwarded-Host, and
