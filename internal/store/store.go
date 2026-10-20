@@ -10,7 +10,6 @@ import (
 
 	"github.com/JBK2116/checkregress/internal/models"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var (
@@ -35,14 +34,23 @@ const (
 	poolOpenTimeout = time.Second * 10
 )
 
+// pool is the subset of *pgxpool.Pool the Store depends on, kept as an
+// interface so tests can inject a fake.
+type pool interface {
+	CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error)
+	Close()
+}
+
 // Store provides functionality for interacting with the shadows table.
 type Store struct {
-	// db is the underlying database connection.
-	pool *pgxpool.Pool
-	// rowChan is the channel that receives the rows to be batch inserted.
+	// pool is the underlying database connection.
+	pool pool
+	// rows is the channel that receives the rows to be batch inserted.
 	rows chan *models.ShadowRow
 	// logger is the logger to use for logging in this store.
 	logger *slog.Logger
+	// done is closed when Run returns, after the final drain and flush.
+	done chan struct{}
 }
 
 // NewStore creates a new store configured with the provided values.
@@ -58,6 +66,7 @@ func NewStore(ctx context.Context, logger *slog.Logger, url string) (*Store, err
 		pool:   pool,
 		rows:   make(chan *models.ShadowRow, batchSize),
 		logger: logger,
+		done:   make(chan struct{}),
 	}, nil
 }
 
@@ -76,6 +85,8 @@ func (s *Store) AddRow(shadow *models.ShadowRow) {
 //
 // Rows are batched if the ticker fires, or if the rowChan is full.
 func (s *Store) Run(ctx context.Context) {
+	defer close(s.done)
+
 	ticker := time.NewTicker(batchInterval)
 	defer ticker.Stop()
 
@@ -84,9 +95,7 @@ func (s *Store) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			s.logger.InfoContext(ctx, "server shutting down...flushing remaining rows")
-			if err := s.batch(context.WithoutCancel(ctx), batch); err != nil {
-				s.logger.ErrorContext(ctx, "error during batch insert", "err", err)
-			}
+			s.drainAndFlush(ctx, batch)
 			return
 		case <-ticker.C:
 			if len(batch) == 0 {
@@ -108,6 +117,32 @@ func (s *Store) Run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// drainAndFlush drains any rows still buffered in the channel and flushes them
+// together with the in-progress batch. Callers must ensure no further AddRow
+// calls are made (the producers have already been drained) so the loop
+// terminates.
+func (s *Store) drainAndFlush(ctx context.Context, batch []*models.ShadowRow) {
+	for {
+		select {
+		case row := <-s.rows:
+			batch = append(batch, row)
+		default:
+			if len(batch) > 0 {
+				if err := s.batch(context.WithoutCancel(ctx), batch); err != nil {
+					s.logger.ErrorContext(ctx, "error during batch insert", "err", err)
+				}
+			}
+			return
+		}
+	}
+}
+
+// Wait blocks until Run has returned, i.e. the final drain and flush have
+// completed.
+func (s *Store) Wait() {
+	<-s.done
 }
 
 // batch inserts the provided rows into the shadows table.
