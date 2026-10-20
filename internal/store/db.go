@@ -20,6 +20,8 @@ const (
 	maxConnIdleTime = time.Minute * 3
 	// healthCheckPeriod is the frequency to check the health of the database connections.
 	healthCheckPeriod = time.Second * 20
+	// pingCheckPeriod is the max amount of time to wait for a ping response.
+	pingCheckPeriod = time.Second * 5
 )
 
 // newPool creates a new database connection pool.
@@ -36,6 +38,13 @@ func newPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	conf.HealthCheckPeriod = healthCheckPeriod
 
 	pool, err := pgxpool.NewWithConfig(ctx, conf)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, pingCheckPeriod)
+	defer cancel()
+	err = pool.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
