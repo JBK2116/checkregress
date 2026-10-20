@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"mime"
 	"net/http"
+	"runtime"
 	"strings"
 
 	"github.com/JBK2116/checkregress/internal/models"
@@ -12,11 +13,28 @@ import (
 // Differ provides functionality for comparing the outcomes between a request
 // to legacy and candidate.
 type Differ struct {
+	sem chan struct{}
 }
 
-// NewDiffer returns a new Differ.
-func NewDiffer() Differ {
-	return Differ{}
+// NewDiffer returns a new Differ for use.
+func NewDiffer() *Differ {
+	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
+	return &Differ{sem: sem}
+}
+
+// QueueDiff enqueues a request to the Differ's semaphore.
+func (d *Differ) QueueDiff() bool {
+	select {
+	case d.sem <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+// DequeueDiff dequeues a request from the Differ's semaphore.
+func (d *Differ) DequeueDiff() {
+	<-d.sem
 }
 
 // Diff gathers the resulting data from the outcomes of a request to legacy, secondary, and candidate.
@@ -50,7 +68,6 @@ func (d *Differ) Diff(legacy, secondary, candidate models.Outcome) models.Result
 
 	return out
 }
-
 
 // allPayload checks if all outcomes have a payload attached.
 func allPayload(outcomes ...models.Outcome) bool {

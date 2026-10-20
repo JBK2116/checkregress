@@ -132,11 +132,19 @@ func TestIsJSON(t *testing.T) {
 		want    bool
 	}{
 		{name: "application/json", headers: http.Header{"Content-Type": {"application/json"}}, want: true},
-		{name: "json with charset", headers: http.Header{"Content-Type": {"application/json; charset=utf-8"}}, want: true},
+		{
+			name:    "json with charset",
+			headers: http.Header{"Content-Type": {"application/json; charset=utf-8"}},
+			want:    true,
+		},
 		{name: "json subtype suffix", headers: http.Header{"Content-Type": {"application/ld+json"}}, want: true},
 		{name: "plain text", headers: http.Header{"Content-Type": {"text/plain"}}, want: false},
 		{name: "missing content-type", headers: http.Header{}, want: false},
-		{name: "malformed content-type", headers: http.Header{"Content-Type": {"application/json; charset"}}, want: false},
+		{
+			name:    "malformed content-type",
+			headers: http.Header{"Content-Type": {"application/json; charset"}},
+			want:    false,
+		},
 	}
 
 	for _, tt := range tests {
