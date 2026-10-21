@@ -57,7 +57,7 @@ flowchart LR
     Client[Client] --> LB["Load balancer / TLS terminator"]
     LB --> CR["checkregress :9000"]
 
-    subgraph CR["checkregress (one instance per service)"]
+    subgraph CR_SUB["checkregress (one instance per service)"]
         M{Matcher} -->|"every request"| RP[ReverseProxy]
         M -->|"allowlisted path"| SH[Shadow]
         RP --> D[Differ]
@@ -155,7 +155,7 @@ route:
 | `read_header_timeout_ms` | no       | `5000` (5s)       | Header read deadline (blocks Slowloris). Max `60000`.                                        |
 | `idle_timeout_ms`        | no       | `60000` (60s)     | Idle keep-alive cleanup. Max `600000`.                                                       |
 | `max_body_bytes`         | no       | `1048576` (1 MiB) | Body bytes captured per response for diffing. Min `65536` (64 KiB), max `10485760` (10 MiB). |
-| `database_path`          | no       | `checkregress.db` | Path to the SQLite database file. Created automatically on first start.            |
+| `database_path`          | no       | `checkregress.db` | Path to the SQLite database file. Created automatically on first start.                      |
 | `route.legacy`           | yes      | -                 | `http(s)` URL of the legacy service. Must differ from `candidate`.                           |
 | `route.secondary`        | no       | `route.legacy`    | Baseline for filtering dynamic fields. Must differ from `candidate` if specified.            |
 | `route.candidate`        | yes      | -                 | `http(s)` URL of the new rewritten system.                                                   |
