@@ -655,6 +655,29 @@ route:
 	}
 }
 
+func TestLoadYamlDatabasePathDefault(t *testing.T) {
+	t.Parallel()
+	dir := writeConfigFile(t, "config.yml", validConfig())
+
+	conf := loadYamlFromDir(dir)
+
+	if conf.DatabasePath != defaultDatabasePath {
+		t.Errorf("DatabasePath = %q, want %q", conf.DatabasePath, defaultDatabasePath)
+	}
+}
+
+func TestLoadYamlDatabasePathExplicit(t *testing.T) {
+	t.Parallel()
+	const want = "/var/lib/checkregress/checkregress.db"
+	dir := writeConfigFile(t, "config.yml", wrapConfig(`database_path: "`+want+`"`))
+
+	conf := loadYamlFromDir(dir)
+
+	if conf.DatabasePath != want {
+		t.Errorf("DatabasePath = %q, want %q", conf.DatabasePath, want)
+	}
+}
+
 func TestLoadYamlShadowTimeoutNotLessThanE2E(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

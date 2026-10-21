@@ -128,9 +128,7 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	legOutcome := o.proxy.Serve(w, req, canonicalPath, true)
 
-	o.wg.Add(1)
-	go func() {
-		defer o.wg.Done()
+	o.wg.Go(func() {
 		defer func() {
 			if rec := recover(); rec != nil {
 				o.logger.ErrorContext(ctx, "differ/store panic", "panic", rec)
@@ -154,7 +152,7 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		res := o.differ.Diff(*legOutcome, secOutcome, candOutcome)
 		row := genRow(*legOutcome, secOutcome, candOutcome, res)
 		o.store.AddRow(&row)
-	}()
+	})
 }
 
 // Wait blocks until every in-flight differ/store goroutine has finished. It is

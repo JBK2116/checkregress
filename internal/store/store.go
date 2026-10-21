@@ -2,26 +2,17 @@ package store
 
 import (
 	"context"
-	"fmt"
-
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/JBK2116/checkregress/internal/models"
-	"github.com/jackc/pgx/v5"
 )
 
 var (
 	ErrStatusMismatch = errors.New("headers/body must be null IFF status_match is false")
 )
-
-// shadowCols is the list of columns to copy into the shadows table.
-var shadowCols = []string{
-	"canonical_path", "legacy_url", "secondary_url", "candidate_url",
-	"status_legacy", "status_candidate", "status_match",
-	"headers", "body",
-}
 
 const (
 	// batchSize is the number of rows to batch insert at a time.
@@ -30,15 +21,17 @@ const (
 	batchInterval = time.Second * 5
 	// batchTimeout is the maximum amount of time to wait for a batch insert to complete.
 	batchTimeout = time.Second * 3
-	// poolOpenTimeout is the maximum amount of time to wait for a connection pool to open.
+	// poolOpenTimeout is the maximum amount of time to wait for a connection to open.
 	poolOpenTimeout = time.Second * 10
 )
 
-// pool is the subset of *pgxpool.Pool the Store depends on, kept as an
+// pool is the subset of the SQLite database the Store depends on, kept as an
 // interface so tests can inject a fake.
 type pool interface {
-	CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error)
-	Close()
+	// InsertRows inserts a batch of rows into the shadows table.
+	InsertRows(context.Context, []*models.ShadowRow) error
+	// Close closes the underlying database.
+	Close() error
 }
 
 // Store provides functionality for interacting with the shadows table.
@@ -54,11 +47,11 @@ type Store struct {
 }
 
 // NewStore creates a new store configured with the provided values.
-func NewStore(ctx context.Context, logger *slog.Logger, url string) (*Store, error) {
+func NewStore(ctx context.Context, logger *slog.Logger, path string) (*Store, error) {
 	ctx, cancel := context.WithTimeout(ctx, poolOpenTimeout)
 	defer cancel()
 
-	pool, err := newPool(ctx, url)
+	pool, err := newDB(ctx, path)
 	if err != nil {
 		return nil, err
 	}
@@ -154,36 +147,13 @@ func (s *Store) batch(ctx context.Context, rows []*models.ShadowRow) error {
 		return nil
 	}
 
-	src := pgx.CopyFromSlice(len(rows), func(i int) ([]any, error) {
-		r := rows[i]
-
-		// Untyped nil becomes SQL NULL. The row-kind CHECK requires NULL, not JSON 'null'.
-		var headers, body any
-		if r.Headers != nil {
-			headers = r.Headers
-		}
-		if r.Body != nil {
-			body = r.Body
-		}
-
-		return []any{
-			r.CanonicalPath, r.LegacyURL, r.SecondaryURL, r.CandidateURL,
-			r.StatusLegacy, r.StatusCandidate, r.StatusMatch,
-			headers, body,
-		}, nil
-	})
-
-	n, err := s.pool.CopyFrom(ctxBatch, pgx.Identifier{"shadows"}, shadowCols, src)
-	if err != nil {
-		return fmt.Errorf("copy shadows: %w", err)
-	}
-	if int(n) != len(rows) {
-		return fmt.Errorf("copy shadows: inserted %d of %d rows", n, len(rows))
+	if err := s.pool.InsertRows(ctxBatch, rows); err != nil {
+		return fmt.Errorf("insert shadows: %w", err)
 	}
 	return nil
 }
 
 // Close closes the underlying database connection.
 func (s *Store) Close() {
-	s.pool.Close()
+	_ = s.pool.Close()
 }

@@ -31,6 +31,8 @@ const (
 	defaultE2ETimeoutMS = 60000
 	// maxE2ETimeoutMS is the upperbound limit for the e2e_timeout_ms field (600 seconds).
 	maxE2ETimeoutMS = 600000
+	// defaultDatabasePath is the default path to the SQLite database file.
+	defaultDatabasePath = "checkregress.db"
 	// MinBodyBytes is the minimum amount of bytes the proxy will read from the response body.
 	MinBodyBytes = 64 << 10 // 64 KiB
 	// DefaultBodyBytes is the default amount of bytes the proxy will read from the response body.
@@ -83,6 +85,8 @@ type RawYamlConfig struct {
 	E2ETimeoutMS int `yaml:"e2e_timeout_ms"`
 	// MaxBodyBytes sets the max amount of bytes the proxy will read from the response body.
 	MaxBodyBytes int `yaml:"max_body_bytes"`
+	// DatabasePath sets the path to the SQLite database file.
+	DatabasePath string `yaml:"database_path"`
 	// Route stores the single route (legacy, secondary, candidate) to handle.
 	Route models.RawRoute `yaml:"route"`
 }
@@ -103,6 +107,8 @@ type YamlConfig struct {
 	E2ETimeoutMS int
 	// MaxBodyBytes sets the max amount of bytes the proxy will read from the response body.
 	MaxBodyBytes int
+	// DatabasePath sets the path to the SQLite database file.
+	DatabasePath string
 	// Route stores the single route (legacy, secondary, candidate) to handle.
 	Route models.Route
 }
@@ -197,6 +203,7 @@ func (c *RawYamlConfig) validate() YamlConfig {
 	conf.IdleTimeoutMS = c.IdleTimeoutMS
 	conf.E2ETimeoutMS = c.E2ETimeoutMS
 	conf.MaxBodyBytes = c.MaxBodyBytes
+	conf.DatabasePath = c.DatabasePath
 
 	conf.Route = c.Route.Validate()
 	return conf
@@ -218,6 +225,9 @@ func (c *RawYamlConfig) applyDefaults() {
 	}
 	if c.MaxBodyBytes == 0 {
 		c.MaxBodyBytes = DefaultBodyBytes
+	}
+	if c.DatabasePath == "" {
+		c.DatabasePath = defaultDatabasePath
 	}
 }
 

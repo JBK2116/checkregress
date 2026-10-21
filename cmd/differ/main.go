@@ -22,7 +22,6 @@ func main() {
 	defer cancel()
 
 	yam := config.LoadYaml()
-	env := config.LoadEnv()
 
 	lg := config.NewLogger()
 
@@ -38,7 +37,7 @@ func main() {
 
 	sh := shadow.NewShadow(lg, cl.GetClient())
 
-	st, err := store.NewStore(ctx, lg, env.DatabaseURL)
+	st, err := store.NewStore(ctx, lg, yam.DatabasePath)
 	if err != nil {
 		lg.Error("failed to create store", "err", err)
 		return
